@@ -142,6 +142,7 @@ export default function App() {
 
     socket.on('status_pedido_atualizado', (pedidoAtualizado) => {
       setPedidos(prev => prev.map(p => p.id === pedidoAtualizado.id ? pedidoAtualizado : p));
+      setUltimoPedidoChamado(prev => prev && prev.id === pedidoAtualizado.id ? pedidoAtualizado : prev);
     });
 
     socket.on('pedido_chamado', (pedidoPronto) => {
@@ -204,11 +205,14 @@ export default function App() {
       else if (entreguesCount > 0) novoStatus = 'entrega_parcial';
       else if (order.status === 'entregue' || order.status === 'entrega_parcial') novoStatus = 'em_preparo';
 
-      return {
+      const orderAtualizada = {
         ...order,
         itens: novosItens,
         status: novoStatus
       };
+
+      setUltimoPedidoChamado(prev => prev && prev.id === orderId ? orderAtualizada : prev);
+      return orderAtualizada;
     }));
 
     // 2. Transmissão em Tempo Real via Socket.io

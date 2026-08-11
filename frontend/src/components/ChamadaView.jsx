@@ -7,7 +7,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
   // Trigger sound chime whenever a new order is called
   useEffect(() => {
-    if (ultimoPedidoChamado && ultimoPedidoChamado.status === 'pronto' && somAtivo) {
+    if (ultimoPedidoChamado && (ultimoPedidoChamado.status === 'pronto' || ultimoPedidoChamado.status === 'entrega_parcial') && somAtivo) {
       playChimeSound();
     }
   }, [ultimoPedidoChamado, somAtivo]);
@@ -17,8 +17,13 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
     .filter(p => p.status === 'entregue')
     .slice(0, 8); // Mostrar os últimos 8 entregues
 
-  const pedidoEmDestaque = ultimoPedidoChamado && (ultimoPedidoChamado.status === 'pronto' || ultimoPedidoChamado.status === 'entrega_parcial')
-    ? ultimoPedidoChamado
+  // Buscar a versão em tempo real atualizada do pedido em destaque diretamente no array de pedidos do React
+  const pedidoEmDestaqueLive = ultimoPedidoChamado
+    ? pedidos.find(p => p.id === ultimoPedidoChamado.id)
+    : null;
+
+  const pedidoEmDestaque = (pedidoEmDestaqueLive && (pedidoEmDestaqueLive.status === 'pronto' || pedidoEmDestaqueLive.status === 'entrega_parcial'))
+    ? pedidoEmDestaqueLive
     : pedidosProntos[0];
 
   return (
@@ -121,16 +126,24 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           display: flex;
           align-items: center;
           justify-content: space-between;
-          padding: 0.4rem 0.6rem;
+          padding: 0.55rem 0.8rem;
           background: var(--app-surface-2);
-          border-radius: var(--radius-sm);
+          border: 1px solid var(--app-border);
+          border-radius: var(--radius-md);
           font-weight: 600;
           font-size: 0.95rem;
+          cursor: pointer;
+          transition: all 130ms ease;
+          -webkit-tap-highlight-color: transparent;
+        }
+
+        .destaque-item-row:hover {
+          border-color: var(--primary);
         }
 
         .destaque-item-row.item-entregue {
-          opacity: 0.5;
-          text-decoration: line-through;
+          background: #eef7ec !important;
+          border: 2px solid #156b16 !important;
         }
 
         .destaque-acoes {
@@ -260,7 +273,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
               <div className="destaque-itens-box">
                 <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--app-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
                   <span>Conferência de Itens no Balcão:</span>
-                  <span style={{ color: 'var(--primary)' }}>
+                  <span style={{ color: 'var(--primary)', fontWeight: 800 }}>
                     {pedidoEmDestaque.itens.filter(i => i.entregue).length} de {pedidoEmDestaque.itens.length} entregues
                   </span>
                 </div>
@@ -271,18 +284,14 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
                     <div
                       key={idx}
                       className={`destaque-item-row ${isEntregue ? 'item-entregue' : ''}`}
-                      style={{
-                        background: isEntregue ? 'rgba(16, 185, 129, 0.12)' : 'var(--app-surface-2)',
-                        border: isEntregue ? '1px solid var(--primary)' : '1px solid var(--app-border)',
-                        transition: 'all 130ms ease'
-                      }}
+                      onClick={() => onAlternarItemEntregue && onAlternarItemEntregue(pedidoEmDestaque.id, idx, !isEntregue)}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
                         <span className={isEntregue ? 'badge badge-pronto' : 'badge badge-pendente'}>
                           {item.quantidade}x
                         </span>
                         <span style={{
-                          color: 'var(--text-title)',
+                          color: isEntregue ? '#156b16' : 'var(--text-title)',
                           textDecoration: isEntregue ? 'line-through' : 'none',
                           fontWeight: 700
                         }}>
