@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ChefHat, Clock, Play, Bell, AlertTriangle, CheckCircle, MessageSquare, User, Filter } from 'lucide-react';
+import { ChefHat, Clock, Play, Bell, AlertTriangle, CheckCircle, MessageSquare, User, Filter, CheckSquare, Square, PackageCheck } from 'lucide-react';
 
-export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
+export default function CozinhaView({ pedidos, operador, onMudarStatus, onAlternarItemEntregue }) {
   const [agora, setAgora] = useState(Date.now());
-  const [filtro, setFiltro] = useState('ativos'); // ativos | pendentes | preparo | meus
+  const [filtro, setFiltro] = useState('ativos'); // ativos | pendentes | preparo | parcial | meus
 
   // Timer tick for wait time updating every second
   useEffect(() => {
@@ -13,11 +13,12 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
     return () => clearInterval(timer);
   }, []);
 
-  const pedidosAtivos = pedidos.filter(p => p.status === 'pendente' || p.status === 'em_preparo');
+  const pedidosAtivos = pedidos.filter(p => p.status === 'pendente' || p.status === 'em_preparo' || p.status === 'entrega_parcial');
 
   const pedidosExibidos = pedidosAtivos.filter(p => {
     if (filtro === 'pendentes') return p.status === 'pendente';
     if (filtro === 'preparo') return p.status === 'em_preparo';
+    if (filtro === 'parcial') return p.status === 'entrega_parcial';
     if (filtro === 'meus' && operador) return p.preparadoPor && p.preparadoPor.includes(operador.nome);
     return true; // todos os ativos
   });
@@ -80,7 +81,7 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
 
         .cozinha-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
           gap: 1.25rem;
         }
 
@@ -91,12 +92,11 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
           overflow: hidden;
           display: flex;
           flex-direction: column;
-          box-shadow: var(--shadow-md);
           transition: border-color 130ms ease, transform 130ms ease;
         }
 
         .kds-card.normal {
-          border-color: rgba(45, 157, 120, 0.4);
+          border-color: rgba(21, 107, 22, 0.4);
         }
 
         .kds-card.alerta {
@@ -105,7 +105,6 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
 
         .kds-card.urgente {
           border-color: var(--primary);
-          box-shadow: 0 0 15px rgba(250, 15, 0, 0.4);
           animation: pulseBorder 1.5s infinite;
         }
 
@@ -179,18 +178,31 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
         .kds-item-row {
           display: flex;
           flex-direction: column;
-          gap: 0.2rem;
-          padding-bottom: 0.5rem;
-          border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+          gap: 0.3rem;
+          padding: 0.6rem;
+          border-radius: var(--radius-md);
+          background: var(--app-surface-2);
+          border: 1px solid var(--app-border);
+          transition: all 130ms ease;
         }
 
-        .kds-item-row:last-child {
-          border-bottom: none;
+        .kds-item-row.item-entregue {
+          opacity: 0.55;
+          text-decoration: line-through;
+          background: rgba(16, 185, 129, 0.08);
+          border-color: rgba(16, 185, 129, 0.25);
         }
 
         .item-line {
           display: flex;
-          align-items: baseline;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.6rem;
+        }
+
+        .item-info {
+          display: flex;
+          align-items: center;
           gap: 0.6rem;
         }
 
@@ -200,8 +212,8 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
           font-family: var(--font-display);
           font-weight: 900;
           font-size: 0.95rem;
-          width: 26px;
-          height: 26px;
+          width: 28px;
+          height: 28px;
           border-radius: var(--radius-sm);
           display: flex;
           align-items: center;
@@ -213,6 +225,27 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
           font-weight: 700;
           font-size: 1.05rem;
           color: var(--text-title);
+        }
+
+        .item-check-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.35rem;
+          padding: 0.35rem 0.65rem;
+          border-radius: var(--radius-sm);
+          border: 1px solid var(--app-border);
+          background: var(--app-canvas);
+          color: var(--text-title);
+          font-size: 0.78rem;
+          font-weight: 700;
+          cursor: pointer;
+          transition: all 130ms ease;
+        }
+
+        .item-check-btn.checked {
+          background: var(--status-pronto);
+          color: #ffffff;
+          border-color: var(--status-pronto);
         }
 
         .item-obs-highlight {
@@ -284,6 +317,12 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
           >
             Em Preparo ({pedidosAtivos.filter(p => p.status === 'em_preparo').length})
           </button>
+          <button
+            className={`nav-btn ${filtro === 'parcial' ? 'active' : ''}`}
+            onClick={() => setFiltro('parcial')}
+          >
+            Entrega Parcial ({pedidosAtivos.filter(p => p.status === 'entrega_parcial').length})
+          </button>
           {operador && (
             <button
               className={`nav-btn ${filtro === 'meus' ? 'active' : ''}`}
@@ -308,6 +347,10 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
             const nivelEspera = getCorStatusEspera(order.criadoEm);
             const tempoStr = formatarTempoEspera(order.criadoEm);
 
+            const totalItens = order.itens.reduce((acc, i) => acc + (i.quantidade || 1), 0);
+            const entreguesItens = order.itens.filter(i => i.entregue).reduce((acc, i) => acc + (i.quantidade || 1), 0);
+            const isParcial = entreguesItens > 0 && entreguesItens < totalItens;
+
             return (
               <div key={order.id} className={`kds-card ${nivelEspera}`}>
                 {/* Cabeçalho do Cartão */}
@@ -331,10 +374,18 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
                       </div>
                     )}
                   </div>
+
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.3rem' }}>
-                    <span className={`badge badge-${order.status === 'pendente' ? 'pendente' : 'preparo'}`}>
-                      {order.status === 'pendente' ? 'Novo' : 'Em Preparo'}
-                    </span>
+                    {isParcial ? (
+                      <span className="badge badge-entregue" style={{ background: '#eef7ec', color: '#156b16', border: '1px solid #b7dfb8' }}>
+                        PARCIAL ({entreguesItens}/{totalItens})
+                      </span>
+                    ) : (
+                      <span className={`badge badge-${order.status === 'pendente' ? 'pendente' : 'preparo'}`}>
+                        {order.status === 'pendente' ? 'Novo' : 'Em Preparo'}
+                      </span>
+                    )}
+
                     <div className={`timer-box ${nivelEspera}`}>
                       <Clock size={14} />
                       <span>{tempoStr}</span>
@@ -342,13 +393,29 @@ export default function CozinhaView({ pedidos, operador, onMudarStatus }) {
                   </div>
                 </div>
 
-                {/* Itens do Pedido */}
+                {/* Itens do Pedido com Checkbox de Baixa Parcial */}
                 <div className="kds-card-body">
+                  <div style={{ fontSize: '0.78rem', color: 'var(--app-ink-muted)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem', marginBottom: '0.2rem' }}>
+                    <PackageCheck size={14} color="var(--primary)" />
+                    <span>Clique no item para marcar entrega parcial ({entreguesItens}/{totalItens} entregues):</span>
+                  </div>
+
                   {order.itens.map((item, idx) => (
-                    <div key={idx} className="kds-item-row">
+                    <div key={idx} className={`kds-item-row ${item.entregue ? 'item-entregue' : ''}`}>
                       <div className="item-line">
-                        <span className="item-qtd-badge">{item.quantidade}x</span>
-                        <span className="item-titulo">{item.nome}</span>
+                        <div className="item-info">
+                          <span className="item-qtd-badge">{item.quantidade}x</span>
+                          <span className="item-titulo">{item.nome}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className={`item-check-btn ${item.entregue ? 'checked' : ''}`}
+                          onClick={() => onAlternarItemEntregue && onAlternarItemEntregue(order.id, idx, !item.entregue)}
+                          title={item.entregue ? 'Desmarcar entrega deste item' : 'Marcar item como ENTREGUE ao cliente'}
+                        >
+                          {item.entregue ? <CheckSquare size={14} /> : <Square size={14} />}
+                          <span>{item.entregue ? 'Entregue' : 'Entregar'}</span>
+                        </button>
                       </div>
                       {item.observacao && (
                         <div className="item-obs-highlight">

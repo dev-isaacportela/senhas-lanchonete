@@ -611,6 +611,12 @@ io.on('connection', (socket) => {
       if (preparadoPor) {
         orders[orderIndex].preparadoPor = operadorNome;
       }
+
+      // Se o pedido inteiro for marcado como entregue, marcar todos os itens como entregues
+      if (status === 'entregue' && Array.isArray(orders[orderIndex].itens)) {
+        orders[orderIndex].itens = orders[orderIndex].itens.map(i => ({ ...i, entregue: true }));
+      }
+
       orders[orderIndex].atualizadoEm = new Date().toISOString();
       writeJSON(ORDERS_FILE, orders);
 
@@ -637,7 +643,8 @@ io.on('connection', (socket) => {
         updatedOrder.cliente,
         operadorNome,
         acaoLog,
-        descLog
+        descLog,
+        updatedOrder.itens
       );
 
       io.emit('status_pedido_atualizado', updatedOrder);
@@ -648,6 +655,54 @@ io.on('connection', (socket) => {
 
       if (callback) callback({ status: 'success', order: updatedOrder });
     }
+  });
+
+  // Client triggers item-level partial delivery update
+  socket.on('alternar_item_entregue', ({ orderId, itemIndex, entregue, operadorNome }, callback) => {
+    const orderIndex = orders.findIndex(o => o.id === orderId);
+    if (orderIndex === -1) return;
+
+    const order = orders[orderIndex];
+    if (!order.itens || !order.itens[itemIndex]) return;
+
+    const novoStatusItem = entregue !== undefined ? entregue : !order.itens[itemIndex].entregue;
+    order.itens[itemIndex].entregue = novoStatusItem;
+
+    const totalItens = order.itens.reduce((acc, i) => acc + (i.quantidade || 1), 0);
+    const entreguesItens = order.itens.filter(i => i.entregue).reduce((acc, i) => acc + (i.quantidade || 1), 0);
+
+    if (entreguesItens >= totalItens) {
+      order.status = 'entregue';
+    } else if (entreguesItens > 0) {
+      order.status = 'entrega_parcial';
+    } else {
+      if (order.status === 'entregue' || order.status === 'entrega_parcial') {
+        order.status = 'em_preparo';
+      }
+    }
+
+    order.atualizadoEm = new Date().toISOString();
+    writeJSON(ORDERS_FILE, orders);
+
+    const opNome = operadorNome ? operadorNome.trim() : 'Atendente';
+    const itemObj = order.itens[itemIndex];
+    const itemNome = `${itemObj.quantidade}x ${itemObj.nome}`;
+    const descLog = novoStatusItem
+      ? `Entregou item '${itemNome}' do Pedido #${order.numero} (${order.cliente}) [Entrega Parcial ${entreguesItens}/${totalItens} itens]`
+      : `Desmarcou entrega do item '${itemNome}' do Pedido #${order.numero} (${order.cliente})`;
+
+    registrarLog(
+      order.id,
+      order.numero,
+      order.cliente,
+      opNome,
+      'status',
+      descLog,
+      order.itens
+    );
+
+    io.emit('status_pedido_atualizado', order);
+    if (callback) callback({ status: 'success', order });
   });
 
   socket.on('disconnect', () => {

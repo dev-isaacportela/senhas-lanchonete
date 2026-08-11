@@ -1,23 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Tv, Volume2, VolumeX, CheckCircle, Bell, ArrowRight, UserCheck } from 'lucide-react';
+import { Tv, Volume2, VolumeX, CheckCircle, Bell, ArrowRight, UserCheck, CheckSquare, Square, PackageCheck } from 'lucide-react';
 import { playChimeSound } from '../utils/audioChime';
 
-export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatus }) {
+export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatus, onAlternarItemEntregue }) {
   const [somAtivo, setSomAtivo] = useState(true);
 
   // Trigger sound chime whenever a new order is called
   useEffect(() => {
-    if (ultimoPedidoChamado && somAtivo) {
+    if (ultimoPedidoChamado && ultimoPedidoChamado.status === 'pronto' && somAtivo) {
       playChimeSound();
     }
   }, [ultimoPedidoChamado, somAtivo]);
 
-  const pedidosProntos = pedidos.filter(p => p.status === 'pronto');
+  const pedidosProntos = pedidos.filter(p => p.status === 'pronto' || p.status === 'entrega_parcial');
   const pedidosEntregues = pedidos
     .filter(p => p.status === 'entregue')
     .slice(0, 8); // Mostrar os últimos 8 entregues
 
-  const pedidoEmDestaque = ultimoPedidoChamado && ultimoPedidoChamado.status === 'pronto'
+  const pedidoEmDestaque = ultimoPedidoChamado && (ultimoPedidoChamado.status === 'pronto' || ultimoPedidoChamado.status === 'entrega_parcial')
     ? ultimoPedidoChamado
     : pedidosProntos[0];
 
@@ -79,17 +79,16 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           background: var(--app-surface-2);
           border: 3px solid var(--status-pronto);
           border-radius: var(--radius-lg);
-          padding: clamp(1.5rem, 4vw, 2.5rem) clamp(1rem, 3vw, 1.5rem);
-          box-shadow: var(--glow-pronto);
+          padding: clamp(1.2rem, 3vw, 2rem) clamp(1rem, 3vw, 1.5rem);
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 1rem;
+          gap: 0.85rem;
         }
 
         .destaque-comanda {
           font-family: var(--font-display);
-          font-size: clamp(2.5rem, 10vw, 4.5rem);
+          font-size: clamp(2.5rem, 8vw, 4rem);
           font-weight: 900;
           color: var(--text-title);
           line-height: 1;
@@ -97,18 +96,48 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
         .destaque-cliente {
           font-family: var(--font-display);
-          font-size: clamp(2rem, 8vw, 3.5rem);
+          font-size: clamp(1.8rem, 6vw, 3rem);
           font-weight: 900;
           color: var(--status-pronto);
           text-transform: uppercase;
           letter-spacing: 1px;
           line-height: 1.1;
           word-break: break-word;
-          text-shadow: 0 0 25px rgba(45, 157, 120, 0.4);
+        }
+
+        .destaque-itens-box {
+          width: 100%;
+          background: var(--app-surface-1);
+          border: 1px solid var(--app-border);
+          border-radius: var(--radius-md);
+          padding: 0.85rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          margin-top: 0.4rem;
+        }
+
+        .destaque-item-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 0.4rem 0.6rem;
+          background: var(--app-surface-2);
+          border-radius: var(--radius-sm);
+          font-weight: 600;
+          font-size: 0.95rem;
+        }
+
+        .destaque-item-row.item-entregue {
+          opacity: 0.5;
+          text-decoration: line-through;
         }
 
         .destaque-acoes {
-          margin-top: 1.25rem;
+          margin-top: 1rem;
+          width: 100%;
+          display: flex;
+          gap: 0.5rem;
         }
 
         .tv-sidebar {
@@ -169,7 +198,6 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
         .pronto-item:hover {
           background: var(--app-border);
-          transform: translateX(4px);
         }
 
         .entregues-lista {
@@ -226,14 +254,48 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           <div className="destaque-card">
             <div className="destaque-comanda">#{pedidoEmDestaque.numero}</div>
             <div className="destaque-cliente">{pedidoEmDestaque.cliente}</div>
+
+            {/* Checklist de Itens para Entrega Parcial/Total */}
+            {pedidoEmDestaque.itens && (
+              <div className="destaque-itens-box">
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--app-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'left', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Conferência de Itens no Balcão:</span>
+                  <span style={{ color: 'var(--primary)' }}>
+                    {pedidoEmDestaque.itens.filter(i => i.entregue).length} de {pedidoEmDestaque.itens.length} entregues
+                  </span>
+                </div>
+
+                {pedidoEmDestaque.itens.map((item, idx) => (
+                  <div key={idx} className={`destaque-item-row ${item.entregue ? 'item-entregue' : ''}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="badge badge-pronto">{item.quantidade}x</span>
+                      <span style={{ color: 'var(--text-title)' }}>{item.nome}</span>
+                      {item.observacao && (
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-obs)' }}>({item.observacao})</span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      className={`btn btn-secondary`}
+                      style={{ padding: '0.25rem 0.55rem', fontSize: '0.78rem', minHeight: '30px' }}
+                      onClick={() => onAlternarItemEntregue && onAlternarItemEntregue(pedidoEmDestaque.id, idx, !item.entregue)}
+                    >
+                      {item.entregue ? <CheckSquare size={14} color="var(--primary)" /> : <Square size={14} />}
+                      <span>{item.entregue ? 'Já Entregue' : 'Dar Baixa'}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             
             <div className="destaque-acoes">
               <button
                 className="btn btn-success"
-                style={{ padding: '0.9rem 2rem', fontSize: '1.15rem', borderRadius: 'var(--radius-md)' }}
+                style={{ flex: 1, padding: '0.9rem', fontSize: '1.05rem', borderRadius: 'var(--radius-md)' }}
                 onClick={() => onMudarStatus(pedidoEmDestaque.id, 'entregue')}
               >
-                <UserCheck size={22} /> Marcar como Entregue
+                <UserCheck size={20} /> Finalizar & Entregar Todos os Itens
               </button>
             </div>
           </div>
@@ -270,6 +332,11 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
                   <div>
                     <strong style={{ fontSize: '1.1rem', color: 'var(--text-title)' }}>#{p.numero}</strong>
                     <div style={{ color: 'var(--status-pronto)', fontWeight: 700, fontSize: '0.95rem' }}>{p.cliente}</div>
+                    {p.status === 'entrega_parcial' && (
+                      <span className="badge badge-entregue" style={{ fontSize: '0.7rem', marginTop: '0.2rem' }}>
+                        PARCIAL ({p.itens ? p.itens.filter(i => i.entregue).length : 0}/{p.itens ? p.itens.length : 0})
+                      </span>
+                    )}
                   </div>
                   <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}>
                     Entregue <ArrowRight size={14} />

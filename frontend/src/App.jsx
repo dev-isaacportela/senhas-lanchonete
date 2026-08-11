@@ -185,6 +185,15 @@ export default function App() {
     });
   };
 
+  const handleAlternarItemEntregue = (orderId, itemIndex, entregue) => {
+    socket.emit('alternar_item_entregue', {
+      orderId,
+      itemIndex,
+      entregue,
+      operadorNome: operador ? `${operador.nome}` : 'Atendente'
+    });
+  };
+
   const handleSalvarProduto = (produtoData) => {
     fetch('/api/menu/produto', {
       method: 'POST',
@@ -494,7 +503,12 @@ export default function App() {
         )}
 
         {visaoAtiva === 'cozinha' && (
-          <CozinhaView pedidos={pedidos} operador={operador} onMudarStatus={handleMudarStatus} />
+          <CozinhaView
+            pedidos={pedidos}
+            operador={operador}
+            onMudarStatus={handleMudarStatus}
+            onAlternarItemEntregue={handleAlternarItemEntregue}
+          />
         )}
 
         {visaoAtiva === 'chamada' && (
@@ -502,6 +516,7 @@ export default function App() {
             pedidos={pedidos}
             ultimoPedidoChamado={ultimoPedidoChamado}
             onMudarStatus={handleMudarStatus}
+            onAlternarItemEntregue={handleAlternarItemEntregue}
           />
         )}
 
