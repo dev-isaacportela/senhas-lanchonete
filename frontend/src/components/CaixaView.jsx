@@ -45,7 +45,7 @@ function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
   return `${payloadSemCRC}${crcHex}`;
 }
 
-export default function CaixaView({ socket, menu, operador }) {
+export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
   const [cliente, setCliente] = useState('');
   const [carrinho, setCarrinho] = useState([]);
   const [categoriaAtiva, setCategoriaAtiva] = useState('todas');
@@ -145,7 +145,7 @@ export default function CaixaView({ socket, menu, operador }) {
     }
   };
 
-  // Enviar pedido
+  // Enviar pedido para a cozinha
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
     if (!cliente.trim()) {
@@ -184,9 +184,12 @@ export default function CaixaView({ socket, menu, operador }) {
       dataCobranca: formaPagamento === 'pagar_depois' ? dataCobranca : undefined
     };
 
-    socket.emit('criar_pedido', novoPedido, (resposta) => {
-      if (resposta && resposta.status === 'success') {
-        setSucessoMsg(`Pedido #${resposta.pedido.numero} enviado para a cozinha!`);
+    const enviarFn = onEnviarPedido || (socket ? ((data, cb) => socket.emit('criar_pedido', data, cb)) : null);
+
+    if (enviarFn) {
+      enviarFn(novoPedido, (resposta) => {
+        const numOrder = resposta?.order?.numero || resposta?.pedido?.numero || 'OK';
+        setSucessoMsg(`Pedido #${numOrder} enviado para a cozinha!`);
         setModalPixAberto(false);
         setCliente('');
         setTelefoneCliente('');
@@ -194,8 +197,31 @@ export default function CaixaView({ socket, menu, operador }) {
         setFormaPagamento('pix');
         setMobileTab('cardapio');
         setTimeout(() => setSucessoMsg(null), 4000);
-      }
-    });
+      });
+    } else {
+      fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novoPedido)
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.order) {
+            setSucessoMsg(`Pedido #${data.order.numero} enviado para a cozinha!`);
+            setModalPixAberto(false);
+            setCliente('');
+            setTelefoneCliente('');
+            setCarrinho([]);
+            setFormaPagamento('pix');
+            setMobileTab('cardapio');
+            setTimeout(() => setSucessoMsg(null), 4000);
+          }
+        })
+        .catch(err => {
+          console.error('Erro ao enviar pedido:', err);
+          alert('Erro ao comunicar com o servidor.');
+        });
+    }
   };
 
   const produtosFiltrados = listaProdutos.filter(p => {

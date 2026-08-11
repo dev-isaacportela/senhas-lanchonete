@@ -4,7 +4,7 @@
     "numero": 107,
     "cliente": "teste",
     "criadoPor": "Gerente Master",
-    "preparadoPor": "Cozinheiro KDS",
+    "preparadoPor": "Gerente Master",
     "formaPagamento": "pagar_depois",
     "statusPagamento": "pago",
     "dataCobranca": "2026-08-18",
@@ -14,27 +14,30 @@
         "nome": "X-Burguer Tradicional",
         "preco": 22.9,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-2",
         "nome": "X-Salada Especial",
         "preco": 26.5,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-3",
         "nome": "X-Bacon Supremo",
         "preco": 32,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       }
     ],
     "total": 81.4,
-    "status": "pronto",
+    "status": "entregue",
     "criadoEm": "2026-08-11T13:13:16.441Z",
-    "atualizadoEm": "2026-08-11T13:21:53.059Z"
+    "atualizadoEm": "2026-08-11T14:40:52.329Z"
   },
   {
     "id": "ORD-106",
@@ -48,34 +51,38 @@
         "nome": "X-Burguer Tradicional",
         "preco": 22.9,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-5",
         "nome": "Nuggets Crocantes (10 un)",
         "preco": 18,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-6",
         "nome": "Coca-Cola Lata 350ml",
         "preco": 7,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-2",
         "nome": "X-Salada Especial",
         "preco": 26.5,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       }
     ],
     "total": 74.4,
-    "status": "pronto",
+    "status": "entregue",
     "criadoEm": "2026-08-11T13:06:56.711Z",
-    "atualizadoEm": "2026-08-11T13:07:44.561Z"
+    "atualizadoEm": "2026-08-11T14:40:37.390Z"
   },
   {
     "id": "ORD-105",
@@ -89,20 +96,22 @@
         "nome": "X-Burguer Tradicional",
         "preco": 22.9,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-2",
         "nome": "X-Salada Especial",
         "preco": 26.5,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       }
     ],
     "total": 49.4,
-    "status": "pronto",
+    "status": "entregue",
     "criadoEm": "2026-08-11T13:02:21.521Z",
-    "atualizadoEm": "2026-08-11T13:07:28.429Z"
+    "atualizadoEm": "2026-08-11T14:40:38.125Z"
   },
   {
     "id": "ORD-104",

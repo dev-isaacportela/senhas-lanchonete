@@ -1,5 +1,181 @@
 [
   {
+    "id": "log-1786459252330-vo6u",
+    "timestamp": "2026-08-11T14:40:52.330Z",
+    "pedidoId": "ORD-107",
+    "numeroPedido": 107,
+    "cliente": "teste",
+    "usuario": "Gerente Master",
+    "acao": "entregue",
+    "descricao": "Finalizou e entregou o Pedido #107 para teste",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459247106-89s5",
+    "timestamp": "2026-08-11T14:40:47.106Z",
+    "pedidoId": "ORD-107",
+    "numeroPedido": 107,
+    "cliente": "teste",
+    "usuario": "Gerente Master",
+    "acao": "pronto",
+    "descricao": "Marcou o Pedido #107 (teste) como PRONTO e chamou no balcão",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459238126-qxla",
+    "timestamp": "2026-08-11T14:40:38.126Z",
+    "pedidoId": "ORD-105",
+    "numeroPedido": 105,
+    "cliente": "teste",
+    "usuario": "Gerente Master",
+    "acao": "entregue",
+    "descricao": "Finalizou e entregou o Pedido #105 para teste",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459237391-qot3",
+    "timestamp": "2026-08-11T14:40:37.391Z",
+    "pedidoId": "ORD-106",
+    "numeroPedido": 106,
+    "cliente": "teste",
+    "usuario": "Gerente Master",
+    "acao": "entregue",
+    "descricao": "Finalizou e entregou o Pedido #106 para teste",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-5",
+        "nome": "Nuggets Crocantes (10 un)",
+        "preco": 18,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-6",
+        "nome": "Coca-Cola Lata 350ml",
+        "preco": 7,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459228541-oyh0",
+    "timestamp": "2026-08-11T14:40:28.541Z",
+    "pedidoId": "ORD-107",
+    "numeroPedido": 107,
+    "cliente": "teste",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Burguer Tradicional' do Pedido #107 (teste) [Entrega Parcial 1/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
     "id": "log-1786454513060-n9ry",
     "timestamp": "2026-08-11T13:21:53.060Z",
     "pedidoId": "ORD-107",
