@@ -155,76 +155,14 @@ export default function VendasView({ pedidos, operador }) {
           gap: 0.75rem;
         }
 
-        /* Card Elegante de Filtros */
+        /* Card de Filtros com Dropdown Selects */
         .vendas-filtros-card {
           background: var(--app-surface-1);
           border: 1px solid var(--app-border);
           border-radius: var(--radius-lg);
-          padding: 1.2rem;
+          padding: 1rem 1.25rem;
           display: flex;
-          flex-direction: column;
-          gap: 1.1rem;
-        }
-
-        .vendas-filter-section {
-          display: flex;
-          flex-direction: column;
-          gap: 0.45rem;
-        }
-
-        .vendas-filter-label {
-          font-size: 0.78rem;
-          font-weight: 700;
-          color: var(--app-ink-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.6px;
-          display: flex;
-          align-items: center;
-          gap: 0.4rem;
-        }
-
-        .vendas-pill-group {
-          display: flex;
-          align-items: center;
-          gap: 0.45rem;
-          flex-wrap: wrap;
-        }
-
-        .vendas-pill-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          padding: 0.5rem 1rem;
-          border-radius: var(--radius-pill);
-          background: var(--app-surface-2);
-          border: 1px solid var(--app-border);
-          color: var(--app-ink);
-          font-family: var(--font-body);
-          font-size: 0.88rem;
-          font-weight: 600;
-          cursor: pointer;
-          white-space: nowrap;
-          transition: all 130ms ease;
-          min-height: 38px;
-          outline: none;
-          box-shadow: none !important;
-        }
-
-        .vendas-pill-btn:hover {
-          background: var(--app-border);
-          color: var(--text-title);
-        }
-
-        .vendas-pill-btn.active {
-          background: var(--primary) !important;
-          color: var(--on-primary) !important;
-          border-color: var(--primary) !important;
-          font-weight: 700;
-        }
-
-        .vendas-search-row {
-          display: flex;
-          gap: 0.75rem;
+          gap: 0.85rem;
           align-items: center;
           flex-wrap: wrap;
         }
@@ -235,11 +173,11 @@ export default function VendasView({ pedidos, operador }) {
           gap: 0.6rem;
           background: var(--app-surface-2);
           border: 1px solid var(--app-border);
-          border-radius: var(--radius-pill);
-          padding: 0.5rem 1rem;
-          flex: 1;
-          min-width: 260px;
-          min-height: 42px;
+          border-radius: var(--radius-md);
+          padding: 0.5rem 0.9rem;
+          flex: 1.5;
+          min-width: 240px;
+          min-height: 44px;
         }
 
         .vendas-search-input {
@@ -251,6 +189,34 @@ export default function VendasView({ pedidos, operador }) {
           font-size: 0.92rem;
           outline: none;
           width: 100%;
+        }
+
+        .dropdown-filter-group {
+          display: flex;
+          align-items: center;
+          gap: 0.4rem;
+          min-width: 180px;
+          flex: 1;
+        }
+
+        .dropdown-filter-select {
+          background: var(--app-surface-2);
+          border: 1px solid var(--app-border);
+          border-radius: var(--radius-md);
+          padding: 0.55rem 0.85rem;
+          color: var(--text-title);
+          font-family: var(--font-body);
+          font-weight: 600;
+          font-size: 0.9rem;
+          outline: none;
+          cursor: pointer;
+          width: 100%;
+          min-height: 44px;
+          transition: border-color 130ms ease;
+        }
+
+        .dropdown-filter-select:focus {
+          border-color: var(--primary);
         }
 
         .metrics-grid {
@@ -382,6 +348,10 @@ export default function VendasView({ pedidos, operador }) {
           .vendas-mobile-list {
             display: flex;
           }
+          .vendas-filtros-card {
+            flex-direction: column;
+            align-items: stretch;
+          }
         }
       `}</style>
 
@@ -396,134 +366,77 @@ export default function VendasView({ pedidos, operador }) {
         </div>
       </div>
 
-      {/* Card Elegante de Filtros por Período, Busca e Status */}
+      {/* Barra de Filtros com Dropdown Selects Elegantes */}
       <div className="vendas-filtros-card">
-        {/* Linha 1: Caixa de Busca e Filtro de Períodos */}
-        <div className="vendas-search-row">
-          <div className="vendas-search-box">
-            <Search size={18} color="var(--primary)" />
-            <input
-              type="text"
-              className="vendas-search-input"
-              placeholder="Buscar por comanda #, nome do cliente ou WhatsApp..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-            />
-          </div>
-
-          <div className="vendas-filter-section">
-            <div className="vendas-pill-group">
-              <button
-                type="button"
-                className={`vendas-pill-btn ${filtroPeriodo === 'hoje' ? 'active' : ''}`}
-                onClick={() => setFiltroPeriodo('hoje')}
-              >
-                <Calendar size={14} /> Hoje
-              </button>
-              <button
-                type="button"
-                className={`vendas-pill-btn ${filtroPeriodo === 'ontem' ? 'active' : ''}`}
-                onClick={() => setFiltroPeriodo('ontem')}
-              >
-                <Clock size={14} /> Ontem
-              </button>
-              <button
-                type="button"
-                className={`vendas-pill-btn ${filtroPeriodo === '7dias' ? 'active' : ''}`}
-                onClick={() => setFiltroPeriodo('7dias')}
-              >
-                <Calendar size={14} /> Últimos 7 dias
-              </button>
-              <button
-                type="button"
-                className={`vendas-pill-btn ${filtroPeriodo === 'todos' ? 'active' : ''}`}
-                onClick={() => setFiltroPeriodo('todos')}
-              >
-                <Layers size={14} /> Todos os Períodos
-              </button>
-              <button
-                type="button"
-                className={`vendas-pill-btn ${filtroPeriodo === 'custom' ? 'active' : ''}`}
-                onClick={() => setFiltroPeriodo('custom')}
-              >
-                <Filter size={14} /> Data Personalizada
-              </button>
-            </div>
-          </div>
+        {/* Campo de Pesquisa */}
+        <div className="vendas-search-box">
+          <Search size={18} color="var(--primary)" />
+          <input
+            type="text"
+            className="vendas-search-input"
+            placeholder="Buscar por comanda #, cliente ou WhatsApp..."
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+          />
         </div>
 
-        {/* Inputs de Data Personalizada se filtroPeriodo === 'custom' */}
-        {filtroPeriodo === 'custom' && (
-          <div className="vendas-search-row" style={{ background: 'var(--app-surface-2)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--app-border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
-              <Calendar size={16} color="var(--primary)" />
-              <span style={{ color: 'var(--text-title)' }}>Data Inicial:</span>
-              <input
-                type="date"
-                className="form-input"
-                style={{ minHeight: '38px', padding: '0.35rem 0.7rem' }}
-                value={dataInicio}
-                onChange={(e) => setDataInicio(e.target.value)}
-              />
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
-              <span style={{ color: 'var(--text-title)' }}>Data Final:</span>
-              <input
-                type="date"
-                className="form-input"
-                style={{ minHeight: '38px', padding: '0.35rem 0.7rem' }}
-                value={dataFim}
-                onChange={(e) => setDataFim(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
+        {/* Dropdown 1: Seleção de Período / Data */}
+        <div className="dropdown-filter-group">
+          <select
+            className="dropdown-filter-select"
+            value={filtroPeriodo}
+            onChange={(e) => setFiltroPeriodo(e.target.value)}
+          >
+            <option value="hoje">Período: Hoje</option>
+            <option value="ontem">Período: Ontem</option>
+            <option value="7dias">Período: Últimos 7 dias</option>
+            <option value="todos">Período: Todos os Pedidos</option>
+            <option value="custom">Período: Data Personalizada</option>
+          </select>
+        </div>
 
-        {/* Linha 2: Filtros de Status (Pagos / Fiado / Entregues / Cancelados) */}
-        <div className="vendas-filter-section" style={{ paddingTop: '0.6rem', borderTop: '1px dashed var(--app-border)' }}>
-          <div className="vendas-filter-label">
-            <Tag size={13} color="var(--primary)" />
-            <span>Filtrar por Status de Pagamento & Pedido:</span>
-          </div>
-          <div className="vendas-pill-group">
-            <button
-              type="button"
-              className={`vendas-pill-btn ${filtroStatus === 'todos' ? 'active' : ''}`}
-              onClick={() => setFiltroStatus('todos')}
-            >
-              Todos os Pedidos
-            </button>
-            <button
-              type="button"
-              className={`vendas-pill-btn ${filtroStatus === 'pagos' ? 'active' : ''}`}
-              onClick={() => setFiltroStatus('pagos')}
-            >
-              <CheckCircle size={14} /> Quitados / Pagos
-            </button>
-            <button
-              type="button"
-              className={`vendas-pill-btn ${filtroStatus === 'fiado' ? 'active' : ''}`}
-              onClick={() => setFiltroStatus('fiado')}
-            >
-              <Clock size={14} /> Pagar Depois (Fiado)
-            </button>
-            <button
-              type="button"
-              className={`vendas-pill-btn ${filtroStatus === 'entregues' ? 'active' : ''}`}
-              onClick={() => setFiltroStatus('entregues')}
-            >
-              Entregues
-            </button>
-            <button
-              type="button"
-              className={`vendas-pill-btn ${filtroStatus === 'cancelados' ? 'active' : ''}`}
-              onClick={() => setFiltroStatus('cancelados')}
-            >
-              Cancelados
-            </button>
-          </div>
+        {/* Dropdown 2: Seleção de Status / Tipo de Pagamento */}
+        <div className="dropdown-filter-group">
+          <select
+            className="dropdown-filter-select"
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(e.target.value)}
+          >
+            <option value="todos">Status: Todos os Pedidos</option>
+            <option value="pagos">Status: Quitados / Pagos</option>
+            <option value="fiado">Status: Pagar Depois (Fiado)</option>
+            <option value="entregues">Status: Entregues</option>
+            <option value="cancelados">Status: Cancelados</option>
+          </select>
         </div>
       </div>
+
+      {/* Inputs de Data Personalizada se filtroPeriodo === 'custom' */}
+      {filtroPeriodo === 'custom' && (
+        <div className="vendas-filtros-card" style={{ background: 'var(--app-surface-2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', fontWeight: 600, flex: 1 }}>
+            <Calendar size={18} color="var(--primary)" />
+            <span style={{ color: 'var(--text-title)' }}>Data Inicial:</span>
+            <input
+              type="date"
+              className="form-input"
+              style={{ minHeight: '38px', padding: '0.35rem 0.7rem', flex: 1 }}
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', fontWeight: 600, flex: 1 }}>
+            <span style={{ color: 'var(--text-title)' }}>Data Final:</span>
+            <input
+              type="date"
+              className="form-input"
+              style={{ minHeight: '38px', padding: '0.35rem 0.7rem', flex: 1 }}
+              value={dataFim}
+              onChange={(e) => setDataFim(e.target.value)}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Grade de Métricas Financeiras */}
       <div className="metrics-grid">
