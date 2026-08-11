@@ -86,6 +86,36 @@ export default function LogsView({ logs, operador }) {
           gap: 0.85rem;
         }
 
+        .search-box {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: var(--app-surface-2);
+          border: 1px solid var(--app-border);
+          border-radius: var(--radius-md);
+          padding: 0.55rem 0.85rem;
+          min-width: 240px;
+          max-width: 380px;
+          flex: 1;
+        }
+
+        .search-input {
+          border: none;
+          background: transparent;
+          color: var(--text-title);
+          font-family: var(--font-body);
+          font-weight: 600;
+          font-size: 0.9rem;
+          outline: none;
+          width: 100%;
+          padding: 0;
+          min-height: auto;
+        }
+
+        .search-input::placeholder {
+          color: var(--app-ink-muted);
+        }
+
         .logs-pills-bar {
           display: flex;
           gap: 0.4rem;
