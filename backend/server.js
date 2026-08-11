@@ -403,6 +403,62 @@ app.patch('/api/orders/:id/status', (req, res) => {
   res.json({ status: 'success', order: updatedOrder });
 });
 
+// Atualizar baixa de item individual do pedido via REST API
+app.patch('/api/orders/:id/itens/:itemIndex', (req, res) => {
+  const { id, itemIndex } = req.params;
+  const { entregue, operadorNome } = req.body;
+  const idx = parseInt(itemIndex, 10);
+
+  const orderIndex = orders.findIndex(o => o.id === id);
+  if (orderIndex === -1) {
+    return res.status(404).json({ error: 'Pedido não encontrado.' });
+  }
+
+  const order = orders[orderIndex];
+  if (!order.itens || !order.itens[idx]) {
+    return res.status(404).json({ error: 'Item não encontrado.' });
+  }
+
+  const novoStatusItem = entregue !== undefined ? entregue : !order.itens[idx].entregue;
+  order.itens[idx].entregue = novoStatusItem;
+
+  const totalItens = order.itens.reduce((acc, i) => acc + (i.quantidade || 1), 0);
+  const entreguesItens = order.itens.filter(i => i.entregue).reduce((acc, i) => acc + (i.quantidade || 1), 0);
+
+  if (entreguesItens >= totalItens) {
+    order.status = 'entregue';
+  } else if (entreguesItens > 0) {
+    order.status = 'entrega_parcial';
+  } else {
+    if (order.status === 'entregue' || order.status === 'entrega_parcial') {
+      order.status = 'em_preparo';
+    }
+  }
+
+  order.atualizadoEm = new Date().toISOString();
+  writeJSON(ORDERS_FILE, orders);
+
+  const opNome = operadorNome ? operadorNome.trim() : 'Atendente';
+  const itemObj = order.itens[idx];
+  const itemNome = `${itemObj.quantidade}x ${itemObj.nome}`;
+  const descLog = novoStatusItem
+    ? `Entregou item '${itemNome}' do Pedido #${order.numero} (${order.cliente}) [Entrega Parcial ${entreguesItens}/${totalItens} itens]`
+    : `Desmarcou entrega do item '${itemNome}' do Pedido #${order.numero} (${order.cliente})`;
+
+  registrarLog(
+    order.id,
+    order.numero,
+    order.cliente,
+    opNome,
+    'status',
+    descLog,
+    order.itens
+  );
+
+  io.emit('status_pedido_atualizado', order);
+  res.json({ status: 'success', order });
+});
+
 // 4. Obter Cardápio
 app.get('/api/menu', (req, res) => {
   res.json(menu);

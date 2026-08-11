@@ -1,5 +1,319 @@
 [
   {
+    "id": "log-1786459590594-6ekq",
+    "timestamp": "2026-08-11T14:46:30.594Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Bacon Supremo' do Pedido #110 (Isaac) [Entrega Parcial 3/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459590593-vs6h",
+    "timestamp": "2026-08-11T14:46:30.593Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Salada Especial' do Pedido #110 (Isaac) [Entrega Parcial 3/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459590268-bmqz",
+    "timestamp": "2026-08-11T14:46:30.268Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Bacon Supremo' do Pedido #110 (Isaac) [Entrega Parcial 3/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459589725-hfji",
+    "timestamp": "2026-08-11T14:46:29.726Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Salada Especial' do Pedido #110 (Isaac) [Entrega Parcial 2/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ]
+  },
+  {
+    "id": "log-1786459580739-czud",
+    "timestamp": "2026-08-11T14:46:20.739Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "pronto",
+    "descricao": "Marcou o Pedido #110 (Isaac) como PRONTO e chamou no balcão",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459580011-zxmp",
+    "timestamp": "2026-08-11T14:46:20.011Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Burguer Tradicional' do Pedido #110 (Isaac) [Entrega Parcial 1/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459566415-yy0p",
+    "timestamp": "2026-08-11T14:46:06.415Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Desmarcou entrega do item '1x X-Burguer Tradicional' do Pedido #110 (Isaac)",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459561534-pf3l",
+    "timestamp": "2026-08-11T14:46:01.534Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Burguer Tradicional' do Pedido #110 (Isaac) [Entrega Parcial 1/3 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459558335-fwsr",
+    "timestamp": "2026-08-11T14:45:58.335Z",
+    "pedidoId": "ORD-110",
+    "numeroPedido": 110,
+    "cliente": "Isaac",
+    "usuario": "Gerente Master",
+    "acao": "criacao",
+    "descricao": "Abriu o Pedido #110 para Isaac | Itens: 1x X-Burguer Tradicional (R$ 22.90), 1x X-Salada Especial (R$ 26.50), 1x X-Bacon Supremo (R$ 32.00) | Forma: PIX | Total: R$ 81.40",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
     "id": "log-1786459493745-me8e",
     "timestamp": "2026-08-11T14:44:53.745Z",
     "pedidoId": "ORD-109",

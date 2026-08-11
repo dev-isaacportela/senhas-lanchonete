@@ -228,7 +228,7 @@ export default function App() {
         operadorNome: operador ? `${operador.nome}` : 'Atendente'
       })
     })
-      .then(res => res.json())
+      .then(res => res.ok ? res.json() : null)
       .then(data => {
         if (data && data.order) {
           setPedidos(prev => prev.map(p => p.id === data.order.id ? data.order : p));
