@@ -265,27 +265,51 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
                   </span>
                 </div>
 
-                {pedidoEmDestaque.itens.map((item, idx) => (
-                  <div key={idx} className={`destaque-item-row ${item.entregue ? 'item-entregue' : ''}`}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span className="badge badge-pronto">{item.quantidade}x</span>
-                      <span style={{ color: 'var(--text-title)' }}>{item.nome}</span>
-                      {item.observacao && (
-                        <span style={{ fontSize: '0.78rem', color: 'var(--text-obs)' }}>({item.observacao})</span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      className={`btn btn-secondary`}
-                      style={{ padding: '0.25rem 0.55rem', fontSize: '0.78rem', minHeight: '30px' }}
-                      onClick={() => onAlternarItemEntregue && onAlternarItemEntregue(pedidoEmDestaque.id, idx, !item.entregue)}
+                {pedidoEmDestaque.itens.map((item, idx) => {
+                  const isEntregue = Boolean(item.entregue);
+                  return (
+                    <div
+                      key={idx}
+                      className={`destaque-item-row ${isEntregue ? 'item-entregue' : ''}`}
+                      style={{
+                        background: isEntregue ? 'rgba(16, 185, 129, 0.12)' : 'var(--app-surface-2)',
+                        border: isEntregue ? '1px solid var(--primary)' : '1px solid var(--app-border)',
+                        transition: 'all 130ms ease'
+                      }}
                     >
-                      {item.entregue ? <CheckSquare size={14} color="var(--primary)" /> : <Square size={14} />}
-                      <span>{item.entregue ? 'Já Entregue' : 'Dar Baixa'}</span>
-                    </button>
-                  </div>
-                ))}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span className={isEntregue ? 'badge badge-pronto' : 'badge badge-pendente'}>
+                          {item.quantidade}x
+                        </span>
+                        <span style={{
+                          color: 'var(--text-title)',
+                          textDecoration: isEntregue ? 'line-through' : 'none',
+                          fontWeight: 700
+                        }}>
+                          {item.nome}
+                        </span>
+                        {item.observacao && (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-obs)' }}>({item.observacao})</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className={`btn ${isEntregue ? 'btn-success' : 'btn-secondary'}`}
+                        style={{ padding: '0.35rem 0.75rem', fontSize: '0.82rem', minHeight: '32px', fontWeight: 700 }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onAlternarItemEntregue) {
+                            onAlternarItemEntregue(pedidoEmDestaque.id, idx, !isEntregue);
+                          }
+                        }}
+                      >
+                        {isEntregue ? <CheckSquare size={16} /> : <Square size={16} />}
+                        <span>{isEntregue ? '✓ Entregue' : 'Dar Baixa'}</span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
             

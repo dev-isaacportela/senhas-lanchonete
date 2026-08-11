@@ -186,12 +186,55 @@ export default function App() {
   };
 
   const handleAlternarItemEntregue = (orderId, itemIndex, entregue) => {
+    // 1. Atualização Otimista Instantânea no Estado do React
+    setPedidos(prev => prev.map(order => {
+      if (order.id !== orderId) return order;
+
+      const novosItens = (order.itens || []).map((item, idx) => {
+        if (idx !== itemIndex) return item;
+        const novoEntregue = entregue !== undefined ? entregue : !item.entregue;
+        return { ...item, entregue: novoEntregue };
+      });
+
+      const totalCount = novosItens.reduce((acc, i) => acc + (i.quantidade || 1), 0);
+      const entreguesCount = novosItens.filter(i => i.entregue).reduce((acc, i) => acc + (i.quantidade || 1), 0);
+
+      let novoStatus = order.status;
+      if (entreguesCount >= totalCount) novoStatus = 'entregue';
+      else if (entreguesCount > 0) novoStatus = 'entrega_parcial';
+      else if (order.status === 'entregue' || order.status === 'entrega_parcial') novoStatus = 'em_preparo';
+
+      return {
+        ...order,
+        itens: novosItens,
+        status: novoStatus
+      };
+    }));
+
+    // 2. Transmissão em Tempo Real via Socket.io
     socket.emit('alternar_item_entregue', {
       orderId,
       itemIndex,
       entregue,
       operadorNome: operador ? `${operador.nome}` : 'Atendente'
     });
+
+    // 3. Fallback via API REST HTTP
+    fetch(`/api/orders/${orderId}/itens/${itemIndex}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        entregue,
+        operadorNome: operador ? `${operador.nome}` : 'Atendente'
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.order) {
+          setPedidos(prev => prev.map(p => p.id === data.order.id ? data.order : p));
+        }
+      })
+      .catch(err => console.error('Erro ao alternar item:', err));
   };
 
   const handleSalvarProduto = (produtoData) => {

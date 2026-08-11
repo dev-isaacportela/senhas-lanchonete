@@ -1,5 +1,87 @@
 [
   {
+    "id": "ORD-109",
+    "numero": 109,
+    "cliente": "teste",
+    "telefoneCliente": null,
+    "criadoPor": "Gerente Master",
+    "preparadoPor": "Gerente Master",
+    "formaPagamento": "pix",
+    "statusPagamento": "pago",
+    "dataCobranca": null,
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ],
+    "total": 81.4,
+    "status": "entregue",
+    "criadoEm": "2026-08-11T14:43:41.983Z",
+    "atualizadoEm": "2026-08-11T14:44:53.745Z"
+  },
+  {
+    "id": "ORD-108",
+    "numero": 108,
+    "cliente": "teste1",
+    "telefoneCliente": null,
+    "criadoPor": "Gerente Master",
+    "preparadoPor": "Gerente Master",
+    "formaPagamento": "pix",
+    "statusPagamento": "pago",
+    "dataCobranca": null,
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      }
+    ],
+    "total": 81.4,
+    "status": "entregue",
+    "criadoEm": "2026-08-11T14:42:52.796Z",
+    "atualizadoEm": "2026-08-11T14:43:20.134Z"
+  },
+  {
     "id": "ORD-107",
     "numero": 107,
     "cliente": "teste",
