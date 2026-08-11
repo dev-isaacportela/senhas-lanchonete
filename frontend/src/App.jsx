@@ -22,6 +22,11 @@ export default function App() {
     return localStorage.getItem('tema_lanchonete') || 'claro';
   });
 
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', tema);
+    document.body.setAttribute('data-theme', tema);
+  }, [tema]);
+
   // Operador Autenticado State
   const [operador, setOperador] = useState(() => {
     try {
