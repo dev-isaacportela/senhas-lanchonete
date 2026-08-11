@@ -18,16 +18,16 @@ const io = new Server(server, {
 });
 
 // Caminhos de Persistência em Disco JSON
-const menuPath = path.join(__dirname, 'data/menu.json');
-const ordersPath = path.join(__dirname, 'data/orders.json');
-const usersPath = path.join(__dirname, 'data/users.json');
-const logsPath = path.join(__dirname, 'data/logs.json');
-const pixConfigPath = path.join(__dirname, 'data/pix-config.json');
+const DATA_DIR = path.join(__dirname, 'data');
+const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
+const MENU_FILE = path.join(DATA_DIR, 'menu.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
+const pixConfigPath = path.join(DATA_DIR, 'pix-config.json');
 
 // Garantir que a pasta de dados existe
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 // Configuração Padrão de Chave PIX

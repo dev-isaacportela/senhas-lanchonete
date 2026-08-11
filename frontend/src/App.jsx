@@ -43,7 +43,7 @@ export default function App() {
   const [carregandoAuth, setCarregandoAuth] = useState(false);
 
   const [pedidos, setPedidos] = useState([]);
-  const [menu, setMenu] = useState({ categorias: [], produtos: [] });
+  const [menu, setMenu] = useState([]);
   const [logs, setLogs] = useState([]);
   const [ultimoPedidoChamado, setUltimoPedidoChamado] = useState(null);
 
@@ -128,11 +128,11 @@ export default function App() {
 
     // Iniciais
     socket.on('pedidos_iniciais', (dados) => {
-      setPedidos(dados);
+      setPedidos(Array.isArray(dados) ? dados : []);
     });
 
     socket.on('cardapio_inicial', (dados) => {
-      setMenu(dados);
+      setMenu(Array.isArray(dados) ? dados : (dados && Array.isArray(dados.produtos) ? dados.produtos : []));
     });
 
     // Eventos em tempo real
@@ -149,7 +149,7 @@ export default function App() {
     });
 
     socket.on('cardapio_atualizado', (novoMenu) => {
-      setMenu(novoMenu);
+      setMenu(Array.isArray(novoMenu) ? novoMenu : (novoMenu && Array.isArray(novoMenu.produtos) ? novoMenu.produtos : []));
     });
 
     socket.on('novo_log_auditoria', (novoLog) => {

@@ -73,8 +73,9 @@ export default function CaixaView({ socket, menu, operador }) {
       .catch(err => console.error('Erro ao carregar chave PIX:', err));
   }, []);
 
-  // Extrair categorias do menu
-  const categorias = ['todas', ...new Set(menu.map(p => p.categoria || 'Geral'))];
+  // Extrair categorias do menu com tratamento defensivo
+  const listaProdutos = Array.isArray(menu) ? menu : [];
+  const categorias = ['todas', ...new Set(listaProdutos.map(p => p.categoria || 'Geral'))];
 
   // Adicionar item ao carrinho
   const adicionarAoCarrinho = (produto) => {
@@ -189,7 +190,7 @@ export default function CaixaView({ socket, menu, operador }) {
     });
   };
 
-  const produtosFiltrados = menu.filter(p =>
+  const produtosFiltrados = listaProdutos.filter(p =>
     p.ativo !== false && (categoriaAtiva === 'todas' || p.categoria === categoriaAtiva)
   );
 
