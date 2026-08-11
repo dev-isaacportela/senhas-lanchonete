@@ -1,9 +1,63 @@
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Work+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Work+Sans:wght@500;600;700&display=swap');
 
-/* ═══════════════════════════════════════════════════════
-   SISTEMA 100% EXCLUSIVO EM TONS DE VERDE (SEM AZUL OU OUTRAS CORES)
-   ═══════════════════════════════════════════════════════ */
+/* ═════════════════════════════════════════════════════════════════════════
+   MODO ESCURO - PRETO PURO (#000000 / #121212) + VERDE (#156b16 / #10B981)
+   SEM SOMBRAS OU EFEITOS ESQUISITOS (FLAT DESIGN LIMPO)
+   ═════════════════════════════════════════════════════════════════════════ */
 :root, [data-theme="escuro"] {
+  --font-title: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Cores Principais do Modo Escuro */
+  --primary: #10B981;
+  --primary-hover: #059669;
+  --primary-light: #34D399;
+  --on-primary: #ffffff;
+  --primary-glow: transparent;
+
+  /* Superfícies Sólidas em Preto Puro */
+  --app-canvas: #000000;
+  --app-surface-1: #121212;
+  --app-surface-2: #1E1E1E;
+  --app-border: #2A2A2A;
+  --app-border-light: #383838;
+
+  /* Tipografia de Alto Contraste */
+  --app-ink: #E0E0E0;
+  --app-ink-muted: #9E9E9E;
+  --text-title: #FFFFFF;
+  --text-body: #E0E0E0;
+  --text-muted: #9E9E9E;
+  --text-obs: #FFE58F;
+
+  /* Status */
+  --blue-link: #10B981;
+  --status-pendente: #10B981;
+  --status-preparo: #4a7c2a;
+  --status-pronto: #10B981;
+  --status-entregue: #64748B;
+  --status-urgente: #b42318;
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-title);
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-pill: 9999px;
+
+  /* Sem Sombras ou Brilhos Externos */
+  --shadow-sm: none;
+  --shadow-md: none;
+  --shadow-lg: none;
+  --glow-pronto: none;
+  --glow-call: none;
+}
+
+/* ═════════════════════════════════════════════════════════════════════════
+   MODO CLARO MANTIDO IDÊNTICO AO ORIGINAL (#F4F5F3 / #FFFFFF / #156b16)
+   ═════════════════════════════════════════════════════════════════════════ */
+[data-theme="claro"], .theme-light {
   --font-title: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-body: 'Work Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
@@ -28,100 +82,31 @@
   --color-row-border: #eef2eb;
   --color-attention: #4a7c2a;
   --color-attention-bg: #f2f7ed;
-  --color-alert: #156b16;
-
-  /* Mapeamento 100% Verde */
-  --primary: #156b16;
-  --primary-hover: #125d13;
-  --on-primary: #ffffff;
-  --primary-glow: transparent;
-
-  --app-canvas: #121E13;
-  --app-surface-1: #1B291D;
-  --app-surface-2: #253828;
-  --app-border: #324B36;
-  --app-border-light: #436349;
-
-  --app-ink: #EBF5EC;
-  --app-ink-muted: #9BB89E;
-  --text-title: #ffffff;
-  --text-body: #EBF5EC;
-  --text-muted: #9BB89E;
-  --text-obs: #FFE58F;
-
-  /* Todos os status e links convertidos exclusivamente para tons de verde */
-  --blue-link: #0d8a57;
-  --status-pendente: #0d8a57;
-  --status-preparo: #4a7c2a;
-  --status-pronto: #156b16;
-  --status-entregue: #207a6d;
-  --status-urgente: #156b16;
-
-  --font-sans: var(--font-body);
-  --font-display: var(--font-title);
-
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 8px;
-  --radius-pill: 9999px;
-
-  --shadow-sm: none;
-  --shadow-md: none;
-  --shadow-lg: none;
-  --glow-pronto: none;
-  --glow-call: none;
-}
-
-/* ══════════════════════════════════════════════════════════
-   TEMA CLARO (100% TONS DE VERDE)
-   ══════════════════════════════════════════════════════════ */
-.theme-light, [data-theme="claro"] {
-  --color-primary: #156b16;
-  --color-primary-hover: #125d13;
-  --color-primary-light: #4f9f50;
-  --color-primary-bg: #eef7ec;
-
-  --color-bg: #F4F5F3;
-  --color-surface: #ffffff;
-  --color-surface-container: #efeeeb;
-  --color-nav: #FAF9F6;
-  --color-nav-text: #5f675c;
-  --color-nav-active: #156b16;
-  --color-nav-hover: #eef7ec;
-  --color-border: rgba(191, 202, 184, 0.38);
-
-  --color-text: #1b1c1a;
-  --color-text-secondary: #5f675c;
-  --color-muted: #7c8579;
-  --color-table-border: #e4e9df;
-  --color-row-border: #eef2eb;
-  --color-attention: #4a7c2a;
-  --color-attention-bg: #f2f7ed;
-  --color-alert: #156b16;
+  --color-alert: #b42318;
 
   --primary: #156b16;
   --primary-hover: #125d13;
   --on-primary: #ffffff;
   --primary-glow: transparent;
 
-  --app-canvas: var(--color-bg);
-  --app-surface-1: var(--color-surface);
-  --app-surface-2: var(--color-surface-container);
-  --app-border: var(--color-table-border);
+  --app-canvas: #F4F5F3;
+  --app-surface-1: #ffffff;
+  --app-surface-2: #efeeeb;
+  --app-border: #e4e9df;
   --app-border-light: #c8d4c9;
 
-  --app-ink: var(--color-text);
-  --app-ink-muted: var(--color-text-secondary);
-  --text-title: var(--color-text);
-  --text-body: var(--color-text);
-  --text-muted: var(--color-muted);
+  --app-ink: #1b1c1a;
+  --app-ink-muted: #5f675c;
+  --text-title: #1b1c1a;
+  --text-body: #1b1c1a;
+  --text-muted: #7c8579;
 
-  --blue-link: #0d8a57;
+  --blue-link: #156b16;
   --status-pendente: #0d8a57;
   --status-preparo: #4a7c2a;
   --status-pronto: #156b16;
   --status-entregue: #207a6d;
-  --status-urgente: #156b16;
+  --status-urgente: #b42318;
 
   --shadow-sm: none;
   --shadow-md: none;
@@ -134,7 +119,7 @@
   box-sizing: border-box;
   margin: 0;
   padding: 0;
-  box-shadow: none !important;
+  box-shadow: none !important; /* Zero sombras ou brilhos externos */
 }
 
 html {
@@ -188,6 +173,7 @@ h6 {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
+  background: var(--app-canvas);
 }
 
 /* Header Navigation Bar */
@@ -242,7 +228,7 @@ h6 {
   border-radius: var(--radius-md);
   cursor: pointer;
   min-height: 44px;
-  transition: all 130ms cubic-bezier(0.45, 0, 0.40, 1);
+  transition: all 130ms ease;
   box-shadow: none;
 }
 
@@ -346,7 +332,7 @@ h6 {
 }
 
 .status-dot.disconnected {
-  background-color: var(--primary);
+  background-color: #b42318;
 }
 
 /* Mobile Header & Bottom Navigation Rules (< 1024px) */
@@ -556,13 +542,13 @@ h6 {
 }
 
 .btn-success {
-  background: var(--color-primary);
+  background: var(--primary);
   color: #ffffff;
   box-shadow: none;
 }
 
 .btn-success:hover {
-  background: var(--color-primary-hover);
+  background: var(--primary-hover);
 }
 
 .btn-warning {
