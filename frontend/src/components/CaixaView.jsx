@@ -25,8 +25,8 @@ function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
   const nameField = formatField('59', cleanNome);
   const cityField = formatField('60', cleanCidade);
 
-  const txIdField = formatField('05', txtId || '***');
-  const addDataField = formatField('62', txtIdField);
+  const txIdSubfield = formatField('05', txtId || '***');
+  const addDataField = formatField('62', txIdSubfield);
 
   const payloadSemCRC = `000201${merchantAccountInfo}${mcc}${currency}${amount}${country}${nameField}${cityField}${addDataField}6304`;
 
