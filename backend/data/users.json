@@ -1,0 +1,30 @@
+[
+  {
+    "id": "u-1",
+    "usuario": "admin",
+    "nome": "Gerente Master",
+    "senha": "123",
+    "role": "master"
+  },
+  {
+    "id": "u-2",
+    "usuario": "caixa",
+    "nome": "Atendente Caixa",
+    "senha": "123",
+    "role": "caixa"
+  },
+  {
+    "id": "u-3",
+    "usuario": "cozinha",
+    "nome": "Cozinheiro KDS",
+    "senha": "123",
+    "role": "cozinha"
+  },
+  {
+    "id": "u-4",
+    "usuario": "tv",
+    "nome": "Monitor TV",
+    "senha": "123",
+    "role": "tv"
+  }
+]

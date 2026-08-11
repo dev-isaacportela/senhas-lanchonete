@@ -1,0 +1,66 @@
+{
+  "categorias": [
+    {
+      "id": "lanches",
+      "nome": "Hambúrgueres & Lanches",
+      "icone": "burger"
+    },
+    {
+      "id": "porcoes",
+      "nome": "Porções & Acompanhamentos",
+      "icone": "fries"
+    },
+    {
+      "id": "bebidas",
+      "nome": "Bebidas & Sucos",
+      "icone": "drink"
+    },
+    {
+      "id": "sobremesas",
+      "nome": "Sobremesas",
+      "icone": "dessert"
+    }
+  ],
+  "produtos": [
+    {
+      "id": "prod-1",
+      "categoriaId": "lanches",
+      "nome": "X-Burguer Tradicional",
+      "descricao": "Pão brioche, hambúrguer artesanal 160g, queijo prato e maionese da casa",
+      "preco": 22.9,
+      "disponivel": true
+    },
+    {
+      "id": "prod-2",
+      "categoriaId": "lanches",
+      "nome": "X-Salada Especial",
+      "descricao": "Hambúrguer 160g, queijo, alface, tomate, picles e molho especial",
+      "preco": 26.5,
+      "disponivel": true
+    },
+    {
+      "id": "prod-3",
+      "categoriaId": "lanches",
+      "nome": "X-Bacon Supremo",
+      "descricao": "Double bacon crocante, hambúrguer 180g, cheddar fatiado e cebola caramelizada",
+      "preco": 32,
+      "disponivel": true
+    },
+    {
+      "id": "prod-4",
+      "categoriaId": "porcoes",
+      "nome": "Batata Frita Rustica",
+      "descricao": "Porção de batata frita com alho, alecrim e maionese temperada (400g)",
+      "preco": 19.9,
+      "disponivel": true
+    },
+    {
+      "id": "prod-5",
+      "categoriaId": "porcoes",
+      "nome": "Nuggets Crocantes (10 un)",
+      "descricao": "Acompanha molho barbecue e maionese verde",
+      "preco": 18,
+      "disponivel": true
+    }
+  ]
+}
