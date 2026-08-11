@@ -73,9 +73,17 @@ export default function CaixaView({ socket, menu, operador }) {
       .catch(err => console.error('Erro ao carregar chave PIX:', err));
   }, []);
 
-  // Extrair categorias do menu com tratamento defensivo
-  const listaProdutos = Array.isArray(menu) ? menu : [];
-  const categorias = ['todas', ...new Set(listaProdutos.map(p => p.categoria || 'Geral'))];
+  // Normalização segura de Produtos e Categorias
+  const listaProdutos = Array.isArray(menu) ? menu : (menu && Array.isArray(menu.produtos) ? menu.produtos : []);
+  const listaCategorias = menu && Array.isArray(menu.categorias) ? menu.categorias : [];
+
+  const getCatNome = (prod) => {
+    if (prod.categoria) return prod.categoria;
+    const catObj = listaCategorias.find(c => c.id === prod.categoriaId);
+    return catObj ? catObj.nome : 'Geral';
+  };
+
+  const categorias = ['todas', ...new Set(listaProdutos.map(p => getCatNome(p)))];
 
   // Adicionar item ao carrinho
   const adicionarAoCarrinho = (produto) => {
@@ -190,9 +198,12 @@ export default function CaixaView({ socket, menu, operador }) {
     });
   };
 
-  const produtosFiltrados = listaProdutos.filter(p =>
-    p.ativo !== false && (categoriaAtiva === 'todas' || p.categoria === categoriaAtiva)
-  );
+  const produtosFiltrados = listaProdutos.filter(p => {
+    const disponivel = p.disponivel !== false && p.ativo !== false;
+    const catNome = getCatNome(p);
+    const bateCategoria = categoriaAtiva === 'todas' || catNome === categoriaAtiva || p.categoriaId === categoriaAtiva;
+    return disponivel && bateCategoria;
+  });
 
   return (
     <div className="caixa-container">
@@ -317,7 +328,7 @@ export default function CaixaView({ socket, menu, operador }) {
 
         .produtos-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
           gap: 0.85rem;
         }
 
@@ -332,8 +343,7 @@ export default function CaixaView({ socket, menu, operador }) {
           gap: 0.75rem;
           cursor: pointer;
           transition: border-color 130ms ease, background 130ms ease;
-          min-height: 120px;
-
+          min-height: 140px;
           -webkit-tap-highlight-color: transparent;
         }
 
@@ -352,8 +362,19 @@ export default function CaixaView({ socket, menu, operador }) {
 
         .prod-cat {
           font-size: 0.75rem;
-          color: var(--app-ink-muted);
+          font-weight: 700;
+          color: var(--primary);
           text-transform: uppercase;
+          letter-spacing: 0.5px;
+          display: inline-block;
+          margin-bottom: 0.2rem;
+        }
+
+        .prod-desc {
+          font-size: 0.82rem;
+          color: var(--app-ink-muted);
+          line-height: 1.35;
+          margin-top: 0.35rem;
         }
 
         .prod-footer {
@@ -361,6 +382,7 @@ export default function CaixaView({ socket, menu, operador }) {
           justify-content: space-between;
           align-items: center;
           margin-top: auto;
+          padding-top: 0.4rem;
         }
 
         .prod-preco {
@@ -655,13 +677,16 @@ export default function CaixaView({ socket, menu, operador }) {
           ))}
         </div>
 
-        {/* Grade de Produtos */}
+        {/* Grade de Produtos com Categoria e Descrição Detalhada */}
         <div className="produtos-grid">
           {produtosFiltrados.map(prod => (
             <div key={prod.id} className="prod-card" onClick={() => adicionarAoCarrinho(prod)}>
               <div>
-                <span className="prod-cat">{prod.categoria}</span>
+                <span className="prod-cat">{getCatNome(prod)}</span>
                 <div className="prod-title">{prod.nome}</div>
+                {prod.descricao && (
+                  <div className="prod-desc">{prod.descricao}</div>
+                )}
               </div>
               <div className="prod-footer">
                 <span className="prod-preco">R$ {(prod.preco || 0).toFixed(2)}</span>
