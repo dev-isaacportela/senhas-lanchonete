@@ -1,63 +1,101 @@
-import React, { useState } from 'react';
-import { ShoppingBag, Plus, Minus, Trash2, User, Send, CheckCircle2, FileText, Utensils, Beef, Sparkles, CupSoda, Cookie, Pizza, Coffee, CreditCard, DollarSign, Calendar, Clock, AlertCircle, Phone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ShoppingBag, Plus, Minus, Trash2, Send, CheckCircle2, FileText, User, Tag, Clock, Calendar, Phone, AlertCircle, CreditCard, DollarSign, QrCode, Copy, Check, X } from 'lucide-react';
 
-function getCategoriaIcon(icone) {
-  switch (icone) {
-    case 'burger': return <Beef size={16} />;
-    case 'fries': return <Sparkles size={16} />;
-    case 'drink': return <CupSoda size={16} />;
-    case 'dessert': return <Cookie size={16} />;
-    case 'pizza': return <Pizza size={16} />;
-    case 'coffee': return <Coffee size={16} />;
-    default: return <Utensils size={16} />;
+// Função utilitária oficial do Banco Central (BACEN) para geração de Payload PIX (BR Code EMV) + CRC16
+function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
+  if (!chave) return '';
+  const cleanChave = String(chave).trim();
+  const cleanNome = String(nome || 'Festa do Morango').trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 25);
+  const cleanCidade = String(cidade || 'SAO PAULO').trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").substring(0, 15).toUpperCase();
+  const valStr = Number(valor || 0).toFixed(2);
+
+  function formatField(id, value) {
+    const len = value.length.toString().padStart(2, '0');
+    return `${id}${len}${value}`;
   }
+
+  const gui = formatField('00', 'br.gov.bcb.pix');
+  const keyField = formatField('01', cleanChave);
+  const merchantAccountInfo = formatField('26', `${gui}${keyField}`);
+
+  const mcc = formatField('52', '0000');
+  const currency = formatField('53', '986');
+  const amount = formatField('54', valStr);
+  const country = formatField('58', 'BR');
+  const nameField = formatField('59', cleanNome);
+  const cityField = formatField('60', cleanCidade);
+
+  const txIdField = formatField('05', txtId || '***');
+  const addDataField = formatField('62', txIdField);
+
+  const payloadSemCRC = `000201${merchantAccountInfo}${mcc}${currency}${amount}${country}${nameField}${cityField}${addDataField}6304`;
+
+  let crc = 0xFFFF;
+  for (let i = 0; i < payloadSemCRC.length; i++) {
+    crc ^= (payloadSemCRC.charCodeAt(i) << 8);
+    for (let j = 0; j < 8; j++) {
+      if ((crc & 0x8000) !== 0) {
+        crc = ((crc << 1) ^ 0x1021) & 0xFFFF;
+      } else {
+        crc = (crc << 1) & 0xFFFF;
+      }
+    }
+  }
+  const crcHex = (crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0');
+  return `${payloadSemCRC}${crcHex}`;
 }
 
-export default function CaixaView({ menu, operador, onEnviarPedido }) {
+export default function CaixaView({ socket, menu, operador }) {
   const [cliente, setCliente] = useState('');
-  const [telefoneCliente, setTelefoneCliente] = useState('');
-  const [categoriaAtiva, setCategoriaAtiva] = useState('todas');
   const [carrinho, setCarrinho] = useState([]);
+  const [categoriaAtiva, setCategoriaAtiva] = useState('todas');
   const [sucessoMsg, setSucessoMsg] = useState(null);
-  const [mobileTab, setMobileTab] = useState('cardapio'); // 'cardapio' | 'carrinho'
+  const [mobileTab, setMobileTab] = useState('cardapio'); // cardapio | carrinho
 
-  // Forma de Pagamento & Pagar Depois
-  const [formaPagamento, setFormaPagamento] = useState('pix'); // pix | dinheiro | debito | credito | pagar_depois
+  // Estado de Forma de Pagamento, Telefone e Data
+  const [formaPagamento, setFormaPagamento] = useState('pix');
+  const [telefoneCliente, setTelefoneCliente] = useState('');
   const [dataCobranca, setDataCobranca] = useState(() => {
     const d = new Date();
-    d.setDate(d.getDate() + 7);
+    d.setDate(d.getDate() + 7); // Padrão 7 dias para cobrança de fiado
     return d.toISOString().split('T')[0];
   });
 
-  const categorias = menu?.categorias || [];
-  const produtos = menu?.produtos || [];
+  // Configuração da Chave PIX e Modal de QR Code
+  const [pixConfig, setPixConfig] = useState(null);
+  const [modalPixAberto, setModalPixAberto] = useState(false);
+  const [pixCopiado, setPixCopiado] = useState(false);
 
-  const produtosFiltrados = categoriaAtiva === 'todas'
-    ? produtos
-    : produtos.filter(p => p.categoriaId === categoriaAtiva);
+  useEffect(() => {
+    fetch('/api/pix-config')
+      .then(res => res.json())
+      .then(dados => setPixConfig(dados))
+      .catch(err => console.error('Erro ao carregar chave PIX:', err));
+  }, []);
 
+  // Extrair categorias do menu
+  const categorias = ['todas', ...new Set(menu.map(p => p.categoria || 'Geral'))];
+
+  // Adicionar item ao carrinho
   const adicionarAoCarrinho = (produto) => {
     setCarrinho(prev => {
-      const idx = prev.findIndex(item => item.id === produto.id);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx].quantidade += 1;
-        return copy;
+      const existe = prev.find(item => item.id === produto.id);
+      if (existe) {
+        return prev.map(item =>
+          item.id === produto.id
+            ? { ...item, quantidade: item.quantidade + 1 }
+            : item
+        );
       }
-      return [...prev, {
-        id: produto.id,
-        nome: produto.nome,
-        preco: produto.preco,
-        quantidade: 1,
-        observacao: ''
-      }];
+      return [...prev, { ...produto, quantidade: 1, observacao: '' }];
     });
   };
 
-  const alterarQuantidade = (id, delta) => {
+  // Alterar quantidade
+  const alterarQuantidade = (produtoId, delta) => {
     setCarrinho(prev => {
       return prev.map(item => {
-        if (item.id === id) {
+        if (item.id === produtoId) {
           const novaQtd = item.quantidade + delta;
           return novaQtd > 0 ? { ...item, quantidade: novaQtd } : null;
         }
@@ -66,56 +104,81 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
     });
   };
 
-  const atualizarObservacao = (id, obs) => {
-    setCarrinho(prev => prev.map(item => {
-      if (item.id === id) {
-        return { ...item, observacao: obs };
-      }
-      return item;
-    }));
+  // Atualizar observação do item
+  const atualizarObservacao = (produtoId, obs) => {
+    setCarrinho(prev =>
+      prev.map(item => item.id === produtoId ? { ...item, observacao: obs } : item)
+    );
   };
 
-  const removerDoCarrinho = (id) => {
-    setCarrinho(prev => prev.filter(item => item.id !== id));
+  // Remover item
+  const removerDoCarrinho = (produtoId) => {
+    setCarrinho(prev => prev.filter(item => item.id !== produtoId));
   };
 
-  const totalCalculado = carrinho.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-  const totalItensQtd = carrinho.reduce((acc, item) => acc + item.quantidade, 0);
+  // Calcular total do pedido
+  const totalCalculado = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
+  const totalItensQtd = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
 
+  // Gerar Payload PIX Oficial
+  const payloadPixAtual = pixConfig?.chavePix ? gerarPayloadPix({
+    chave: pixConfig.chavePix,
+    nome: pixConfig.nomeBeneficiario,
+    cidade: pixConfig.cidadeBeneficiario,
+    valor: totalCalculado
+  }) : '';
+
+  const copiarPixCopiaCola = () => {
+    if (payloadPixAtual) {
+      navigator.clipboard.writeText(payloadPixAtual);
+      setPixCopiado(true);
+      setTimeout(() => setPixCopiado(false), 3000);
+    }
+  };
+
+  // Enviar pedido
   const handleSubmit = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     if (!cliente.trim()) {
-      alert('Por favor, informe o nome do cliente!');
+      alert('Por favor, informe o NOME DO CLIENTE.');
       return;
     }
     if (carrinho.length === 0) {
-      alert('Selecione pelo menos um item para o pedido.');
+      alert('O carrinho está vazio! Adicione pelo menos um item.');
       return;
     }
 
-    const isPagarDepois = formaPagamento === 'pagar_depois';
-
-    if (isPagarDepois) {
+    if (formaPagamento === 'pagar_depois') {
       if (!telefoneCliente.trim()) {
-        alert('Por favor, informe o telefone do cliente para a opção Pagar Depois!');
+        alert('Para a opção "Pagar Depois", é OBRIGATÓRIO informar o TELEFONE / WHATSAPP do cliente!');
         return;
       }
       if (!dataCobranca) {
-        alert('Por favor, selecione a data de cobrança!');
+        alert('Para a opção "Pagar Depois", é OBRIGATÓRIO informar a DATA DE COBRANÇA!');
         return;
       }
     }
 
-    onEnviarPedido({
+    const novoPedido = {
       cliente: cliente.trim(),
-      telefoneCliente: isPagarDepois ? telefoneCliente.trim() : null,
-      itens: carrinho,
+      criadoPor: operador ? operador.nome : 'Caixa',
+      itens: carrinho.map(item => ({
+        id: item.id,
+        nome: item.nome,
+        preco: item.preco,
+        quantidade: item.quantidade,
+        observacao: item.observacao || ''
+      })),
+      total: totalCalculado,
       formaPagamento,
-      statusPagamento: isPagarDepois ? 'pendente_pagamento' : 'pago',
-      dataCobranca: isPagarDepois ? dataCobranca : null
-    }, (res) => {
-      if (res && res.status === 'success') {
-        setSucessoMsg(`Pedido #${res.order.numero} enviado com sucesso!`);
+      telefoneCliente: formaPagamento === 'pagar_depois' ? telefoneCliente.trim() : (telefoneCliente.trim() || undefined),
+      dataCobranca: formaPagamento === 'pagar_depois' ? dataCobranca : undefined
+    };
+
+    socket.emit('criar_pedido', novoPedido, (resposta) => {
+      if (resposta && resposta.status === 'success') {
+        setSucessoMsg(`Pedido #${resposta.pedido.numero} enviado para a cozinha!`);
+        setModalPixAberto(false);
         setCliente('');
         setTelefoneCliente('');
         setCarrinho([]);
@@ -125,6 +188,10 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
       }
     });
   };
+
+  const produtosFiltrados = menu.filter(p =>
+    p.ativo !== false && (categoriaAtiva === 'todas' || p.categoria === categoriaAtiva)
+  );
 
   return (
     <div className="caixa-container">
@@ -178,74 +245,58 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           right: 0.75rem;
           background: var(--primary);
           color: var(--on-primary);
-          padding: 0.9rem 1.25rem;
-          border-radius: var(--radius-lg);
-          box-shadow: 0 8px 24px var(--primary-glow);
-          align-items: center;
-          justify-content: space-between;
+          padding: 0.85rem 1.2rem;
+          border-radius: var(--radius-pill);
           font-weight: 700;
+          font-size: 0.95rem;
+          justify-content: space-between;
+          align-items: center;
           z-index: 90;
           cursor: pointer;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          -webkit-tap-highlight-color: transparent;
         }
 
         @media (max-width: 1024px) {
           .caixa-container {
-            display: flex !important;
-            flex-direction: column !important;
-            height: auto !important;
-            min-height: auto !important;
-          }
-
-          .caixa-cardapio {
-            display: ${mobileTab === 'cardapio' ? 'flex' : 'none'} !important;
-            overflow-y: visible !important;
-            height: auto !important;
-            max-height: none !important;
-            padding-right: 0 !important;
-          }
-
-          .caixa-carrinho {
-            display: ${mobileTab === 'carrinho' ? 'flex' : 'none'} !important;
-            overflow-y: visible !important;
-            height: auto !important;
-            max-height: none !important;
-            padding-bottom: 6rem !important;
-            margin-bottom: 2rem !important;
+            grid-template-columns: 1fr;
+            display: flex;
+            flex-direction: column;
           }
 
           .mobile-view-toggle {
             display: grid;
           }
 
+          .caixa-cardapio-col {
+            display: ${mobileTab === 'cardapio' ? 'flex' : 'none'};
+          }
+
+          .caixa-carrinho-col {
+            display: ${mobileTab === 'carrinho' ? 'flex' : 'none'};
+            padding-bottom: 6rem !important;
+          }
+
           .mobile-cart-float-bar {
-            display: ${mobileTab === 'cardapio' && totalItensQtd > 0 ? 'flex' : 'none'};
+            display: ${mobileTab === 'cardapio' && carrinho.length > 0 ? 'flex' : 'none'};
           }
         }
 
-        .caixa-cardapio {
+        .caixa-cardapio-col {
           display: flex;
           flex-direction: column;
           gap: 1rem;
-          overflow-y: auto;
-          padding-right: 0.5rem;
         }
 
-        .cat-bar {
+        .cat-pills {
           display: flex;
-          gap: 0.4rem;
+          gap: 0.5rem;
           overflow-x: auto;
-          padding-bottom: 0.5rem;
+          padding-bottom: 0.25rem;
           -webkit-overflow-scrolling: touch;
         }
 
         .cat-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.4rem;
-          padding: 0.55rem 0.9rem;
-          border-radius: var(--radius-md);
+          padding: 0.55rem 1.1rem;
+          border-radius: var(--radius-pill);
           background: var(--app-surface-1);
           border: 1px solid var(--app-border);
           color: var(--app-ink);
@@ -254,56 +305,40 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           cursor: pointer;
           white-space: nowrap;
           transition: all 130ms ease;
-          min-height: 44px;
+          min-height: 40px;
         }
 
         .cat-btn.active {
           background: var(--primary);
           color: var(--on-primary);
           border-color: var(--primary);
-          box-shadow: 0 2px 8px var(--primary-glow);
         }
 
         .produtos-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+          grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
           gap: 0.85rem;
-        }
-
-        @media (min-width: 640px) {
-          .produtos-grid {
-            grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-            gap: 1rem;
-          }
         }
 
         .prod-card {
           background: var(--app-surface-1);
           border: 1px solid var(--app-border);
           border-radius: var(--radius-lg);
-          padding: 1rem;
+          padding: 0.9rem;
           display: flex;
           flex-direction: column;
           justify-content: space-between;
-          transition: all 130ms ease;
+          gap: 0.75rem;
           cursor: pointer;
-          min-height: 145px;
+          transition: border-color 130ms ease, background 130ms ease;
+          min-height: 120px;
+
           -webkit-tap-highlight-color: transparent;
         }
 
-        .prod-card:active {
-          transform: scale(0.98);
-        }
-
         .prod-card:hover {
-          border-color: var(--app-border-light);
+          border-color: var(--primary);
           background: var(--app-surface-2);
-          box-shadow: var(--shadow-sm);
-        }
-
-        .prod-card.indisponivel {
-          opacity: 0.4;
-          pointer-events: none;
         }
 
         .prod-title {
@@ -311,18 +346,13 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           font-weight: 700;
           font-size: 1rem;
           color: var(--text-title);
-          margin-bottom: 0.25rem;
           line-height: 1.25;
         }
 
-        .prod-desc {
-          font-size: 0.8rem;
+        .prod-cat {
+          font-size: 0.75rem;
           color: var(--app-ink-muted);
-          margin-bottom: 0.75rem;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
+          text-transform: uppercase;
         }
 
         .prod-footer {
@@ -339,26 +369,20 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
         }
 
         .prod-add-btn {
-          background: rgba(16, 185, 129, 0.12);
-          color: var(--primary);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-          border-radius: var(--radius-md);
-          padding: 0.45rem 0.7rem;
-          font-weight: 700;
-          display: flex;
-          align-items: center;
-          gap: 0.3rem;
-          font-size: 0.82rem;
-          min-height: 38px;
-        }
-
-        .prod-card:hover .prod-add-btn {
           background: var(--primary);
           color: var(--on-primary);
+          border: none;
+          border-radius: var(--radius-md);
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
         }
 
-        /* Resumo do Pedido / Carrinho */
-        .caixa-carrinho {
+        /* Carrinho Panel */
+        .caixa-carrinho-col {
           background: var(--app-surface-1);
           border: 1px solid var(--app-border);
           border-radius: var(--radius-lg);
@@ -366,19 +390,25 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           display: flex;
           flex-direction: column;
           gap: 1rem;
-          box-shadow: var(--shadow-md);
+          height: fit-content;
         }
 
         .carrinho-header {
           display: flex;
+          justify-content: space-between;
           align-items: center;
-          gap: 0.6rem;
-          font-family: var(--font-display);
-          font-size: 1.15rem;
-          font-weight: 700;
-          color: var(--text-title);
           border-bottom: 1px solid var(--app-border);
           padding-bottom: 0.75rem;
+        }
+
+        .carrinho-title {
+          font-family: var(--font-display);
+          font-weight: 700;
+          font-size: 1.15rem;
+          color: var(--text-title);
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
         }
 
         .cliente-input-box {
@@ -389,7 +419,6 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           display: flex;
           align-items: center;
           gap: 0.6rem;
-          box-shadow: none;
         }
 
         .cliente-input {
@@ -403,11 +432,6 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           width: 100%;
         }
 
-        .cliente-input::placeholder {
-          color: var(--app-ink-muted);
-          font-weight: 400;
-        }
-
         .carrinho-itens {
           flex: 1;
           overflow-y: auto;
@@ -416,18 +440,6 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           gap: 0.75rem;
           padding-right: 0.3rem;
           min-height: 160px;
-        }
-
-        .carrinho-vazio {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 100%;
-          color: var(--app-ink-muted);
-          text-align: center;
-          gap: 0.5rem;
-          padding: 2rem 0;
         }
 
         .carrinho-item {
@@ -476,11 +488,6 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           min-height: 32px;
         }
 
-        .qtd-btn:hover {
-          color: var(--primary);
-          background: var(--app-surface-2);
-        }
-
         .qtd-val {
           font-weight: 700;
           font-size: 0.95rem;
@@ -499,60 +506,54 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           background: var(--app-canvas);
           border: 1px dashed var(--app-border);
           border-radius: var(--radius-sm);
-          padding: 0.45rem 0.6rem;
-          color: var(--text-obs);
-          font-size: 0.85rem;
-          outline: none;
+          padding: 0.35rem 0.5rem;
+          font-size: 0.82rem;
+          color: var(--text-title);
           width: 100%;
+          outline: none;
         }
 
-        .obs-input:focus {
-          border-color: var(--primary);
-        }
-
-        /* Seletor de Pagamento */
+        /* Grid de Forma de Pagamento */
         .pgto-grid {
           display: grid;
-          grid-template-columns: repeat(3, 1fr);
+          grid-template-columns: 1fr 1fr;
           gap: 0.4rem;
         }
 
         .pgto-btn {
           display: flex;
-          flex-direction: column;
           align-items: center;
           justify-content: center;
-          gap: 0.25rem;
-          padding: 0.5rem 0.3rem;
+          gap: 0.4rem;
+          padding: 0.5rem 0.6rem;
+          border-radius: var(--radius-md);
           background: var(--app-canvas);
           border: 1px solid var(--app-border);
-          border-radius: var(--radius-md);
           color: var(--app-ink);
-          font-size: 0.78rem;
-          font-weight: 700;
+          font-weight: 600;
+          font-size: 0.85rem;
           cursor: pointer;
-          transition: all 130ms ease;
-          min-height: 48px;
+          min-height: 40px;
         }
 
         .pgto-btn.active {
+          background: var(--primary);
+          color: var(--on-primary);
           border-color: var(--primary);
-          background: rgba(16, 185, 129, 0.15);
-          color: var(--primary);
         }
 
-        .pgto-btn.active.pagar-depois {
+        .pgto-btn.pagar-depois.active {
+          background: var(--status-preparo);
+          color: #ffffff;
           border-color: var(--status-preparo);
-          background: rgba(230, 134, 25, 0.18);
-          color: var(--status-preparo);
         }
 
         .carrinho-footer {
           border-top: 1px solid var(--app-border);
-          padding-top: 0.75rem;
+          padding-top: 0.85rem;
           display: flex;
           flex-direction: column;
-          gap: 0.75rem;
+          gap: 0.85rem;
         }
 
         .total-row {
@@ -562,7 +563,7 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
         }
 
         .total-label {
-          font-size: 0.95rem;
+          font-size: 1rem;
           font-weight: 700;
           color: var(--app-ink-muted);
         }
@@ -578,56 +579,77 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           width: 100%;
           padding: 0.9rem;
           font-size: 1.05rem;
-          min-height: 50px;
         }
 
-        .toast-sucesso {
-          background: rgba(45, 157, 120, 0.18);
-          border: 1px solid var(--status-pronto);
-          color: #4ADE80;
-          padding: 0.75rem;
-          border-radius: var(--radius-md);
+        /* Modal Overlay PIX */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.75);
           display: flex;
           align-items: center;
-          gap: 0.5rem;
-          font-weight: 700;
-          font-size: 0.9rem;
+          justify-content: center;
+          z-index: 300;
+          padding: 1rem;
+        }
+
+        .modal-card-pix {
+          background: var(--app-surface-1);
+          border: 1px solid var(--app-border);
+          border-radius: var(--radius-lg);
+          width: 100%;
+          max-width: 440px;
+          padding: 1.5rem;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          align-items: center;
+          text-align: center;
         }
       `}</style>
 
-      {/* Alternador de Tela para Mobile */}
+      {/* Alternador Mobile de Telas (Cardápio x Comanda) */}
       <div className="mobile-view-toggle">
         <button
           className={`mobile-toggle-btn ${mobileTab === 'cardapio' ? 'active' : ''}`}
           onClick={() => setMobileTab('cardapio')}
         >
-          <Utensils size={16} /> Cardápio
+          <Tag size={16} /> Cardápio de Produtos
         </button>
         <button
           className={`mobile-toggle-btn ${mobileTab === 'carrinho' ? 'active' : ''}`}
           onClick={() => setMobileTab('carrinho')}
         >
-          <ShoppingBag size={16} /> Carrinho ({totalItensQtd})
+          <ShoppingBag size={16} /> Comanda ({totalItensQtd})
         </button>
       </div>
 
-      {/* Esquerda: Seletor de Cardápio */}
-      <div className="caixa-cardapio">
-        {/* Categorias */}
-        <div className="cat-bar">
-          <button
-            className={`cat-btn ${categoriaAtiva === 'todas' ? 'active' : ''}`}
-            onClick={() => setCategoriaAtiva('todas')}
-          >
-            <Utensils size={16} /> Todos
-          </button>
+      {/* Coluna 1: Cardápio de Produtos */}
+      <div className="caixa-cardapio-col">
+        <div className="view-title" style={{ margin: 0 }}>
+          <ShoppingBag size={24} color="var(--primary)" />
+          <span>Cardápio - Lançar Pedidos</span>
+        </div>
+
+        {sucessoMsg && (
+          <div style={{ background: 'var(--color-primary-bg)', border: '1px solid var(--color-primary)', color: 'var(--color-primary)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
+            <CheckCircle2 size={18} />
+            <span>{sucessoMsg}</span>
+          </div>
+        )}
+
+        {/* Pílulas de Filtro por Categoria */}
+        <div className="cat-pills">
           {categorias.map(cat => (
             <button
-              key={cat.id}
-              className={`cat-btn ${categoriaAtiva === cat.id ? 'active' : ''}`}
-              onClick={() => setCategoriaAtiva(cat.id)}
+              key={cat}
+              className={`cat-btn ${categoriaAtiva === cat ? 'active' : ''}`}
+              onClick={() => setCategoriaAtiva(cat)}
             >
-              {getCategoriaIcon(cat.icone)} <span>{cat.nome}</span>
+              {cat === 'todas' ? 'Todas as Categorias' : cat}
             </button>
           ))}
         </div>
@@ -635,19 +657,15 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
         {/* Grade de Produtos */}
         <div className="produtos-grid">
           {produtosFiltrados.map(prod => (
-            <div
-              key={prod.id}
-              className={`prod-card ${!prod.disponivel ? 'indisponivel' : ''}`}
-              onClick={() => prod.disponivel && adicionarAoCarrinho(prod)}
-            >
+            <div key={prod.id} className="prod-card" onClick={() => adicionarAoCarrinho(prod)}>
               <div>
+                <span className="prod-cat">{prod.categoria}</span>
                 <div className="prod-title">{prod.nome}</div>
-                <div className="prod-desc">{prod.descricao}</div>
               </div>
               <div className="prod-footer">
-                <div className="prod-preco">R$ {prod.preco.toFixed(2)}</div>
-                <button className="prod-add-btn">
-                  <Plus size={14} /> Add
+                <span className="prod-preco">R$ {(prod.preco || 0).toFixed(2)}</span>
+                <button className="prod-add-btn" title="Adicionar ao Pedido">
+                  <Plus size={18} />
                 </button>
               </div>
             </div>
@@ -655,25 +673,29 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
         </div>
       </div>
 
-      {/* Direita: Painel de Lançamento / Carrinho com Pagamento */}
-      <div className="caixa-carrinho">
+      {/* Coluna 2: Carrinho / Comanda Atual */}
+      <div className="caixa-carrinho-col">
         <div className="carrinho-header">
-          <ShoppingBag size={20} color="var(--primary)" />
-          <span>Resumo do Pedido</span>
+          <div className="carrinho-title">
+            <ShoppingBag size={20} color="var(--primary)" />
+            <span>Comanda Atual</span>
+          </div>
+          {carrinho.length > 0 && (
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', minHeight: '32px' }}
+              onClick={() => setCarrinho([])}
+            >
+              Limpar
+            </button>
+          )}
         </div>
 
-        {sucessoMsg && (
-          <div className="toast-sucesso">
-            <CheckCircle2 size={18} />
-            <span>{sucessoMsg}</span>
-          </div>
-        )}
-
-        {/* Nome do Cliente com destaque visual */}
+        {/* Input Nome do Cliente */}
         <div className="form-group">
           <label className="form-label">Nome do Cliente *</label>
           <div className="cliente-input-box">
-            <User size={20} color="var(--primary)" />
+            <User size={18} color="var(--primary)" />
             <input
               type="text"
               className="cliente-input"
@@ -684,13 +706,13 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           </div>
         </div>
 
-        {/* Lista de Itens do Pedido */}
+        {/* Itens do Carrinho */}
         <div className="carrinho-itens">
           {carrinho.length === 0 ? (
             <div className="carrinho-vazio">
-              <ShoppingBag size={36} strokeWidth={1.5} />
-              <p>Nenhum item selecionado</p>
-              <span style={{ fontSize: '0.8rem' }}>Clique nos produtos do cardápio para montar o pedido.</span>
+              <ShoppingBag size={36} opacity={0.4} />
+              <p>Nenhum item adicionado ainda.</p>
+              <span style={{ fontSize: '0.82rem' }}>Clique nos produtos do cardápio para montar o pedido.</span>
             </div>
           ) : (
             carrinho.map(item => (
@@ -729,7 +751,7 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           )}
         </div>
 
-        {/* Seção de Forma de Pagamento & Pagar Depois (com Telefone Obrigatório) */}
+        {/* Seção de Forma de Pagamento & Pagar Depois */}
         <div style={{ borderTop: '1px solid var(--app-border)', paddingTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
           <label className="form-label">Forma de Pagamento *</label>
           <div className="pgto-grid">
@@ -770,6 +792,18 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
               <Calendar size={16} /> Pagar Depois (Fiado)
             </button>
           </div>
+
+          {/* Botão de Exibir QR Code PIX quando formaPagamento === 'pix' */}
+          {formaPagamento === 'pix' && totalCalculado > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: '0.3rem', border: '1px solid var(--primary)', color: 'var(--primary)', fontWeight: 700 }}
+              onClick={() => setModalPixAberto(true)}
+            >
+              <QrCode size={18} /> Gerar QR Code PIX (R$ {totalCalculado.toFixed(2)})
+            </button>
+          )}
 
           {/* Campo de Telefone + Data de Cobrança se for Pagar Depois */}
           {formaPagamento === 'pagar_depois' && (
@@ -829,6 +863,77 @@ export default function CaixaView({ menu, operador, onEnviarPedido }) {
           </button>
         </div>
       </div>
+
+      {/* Modal Interativo de QR Code PIX com Valor Dinâmico */}
+      {modalPixAberto && (
+        <div className="modal-overlay">
+          <div className="modal-card-pix">
+            <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '1.1rem', color: 'var(--text-title)' }}>
+                <QrCode size={22} color="var(--primary)" /> Pagamento via PIX
+              </div>
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.2rem 0.5rem', minHeight: '30px' }}
+                onClick={() => setModalPixAberto(false)}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ fontSize: '0.9rem', color: 'var(--app-ink-muted)' }}>
+              Cliente: <strong style={{ color: 'var(--text-title)' }}>{cliente || 'Cliente no Caixa'}</strong>
+            </div>
+
+            {/* Imagem Dinâmica do QR Code BACEN PIX */}
+            {payloadPixAtual ? (
+              <div style={{ background: '#FFFFFF', padding: '1rem', borderRadius: 'var(--radius-md)', border: '2px solid var(--primary)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(payloadPixAtual)}`}
+                  alt="QR Code PIX Dinâmico"
+                  style={{ width: '200px', height: '200px' }}
+                />
+              </div>
+            ) : (
+              <div style={{ padding: '1rem', color: 'var(--status-urgente)', fontSize: '0.85rem' }}>
+                Nenhuma Chave PIX cadastrada pelo Administrador.
+              </div>
+            )}
+
+            <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--color-primary)' }}>
+              R$ {totalCalculado.toFixed(2)}
+            </div>
+
+            <div style={{ fontSize: '0.82rem', color: 'var(--app-ink-muted)' }}>
+              Beneficiário: <strong>{pixConfig?.nomeBeneficiario || 'Festa do Morango'}</strong> ({pixConfig?.chavePix})
+            </div>
+
+            {/* Pix Copia e Cola */}
+            {payloadPixAtual && (
+              <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <button className="btn btn-secondary" style={{ width: '100%', fontSize: '0.85rem' }} onClick={copiarPixCopiaCola}>
+                  {pixCopiado ? <Check size={16} color="var(--primary)" /> : <Copy size={16} />}
+                  {pixCopiado ? 'Código PIX Copiado!' : 'Copiar Código Pix Copia e Cola'}
+                </button>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '0.5rem', width: '100%', marginTop: '0.5rem' }}>
+              <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setModalPixAberto(false)}>
+                Voltar
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1.5 }}
+                onClick={handleSubmit}
+                disabled={carrinho.length === 0 || !cliente.trim()}
+              >
+                <Send size={16} /> Confirmar & Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Barra Flutuante de Atalho do Carrinho em Mobile */}
       <div className="mobile-cart-float-bar" onClick={() => setMobileTab('carrinho')}>

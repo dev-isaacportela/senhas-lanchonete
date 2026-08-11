@@ -17,15 +17,28 @@ const io = new Server(server, {
   }
 });
 
-const DATA_DIR = path.join(__dirname, 'data');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
-const MENU_FILE = path.join(DATA_DIR, 'menu.json');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
+// Caminhos de Persistência em Disco JSON
+const menuPath = path.join(__dirname, 'data/menu.json');
+const ordersPath = path.join(__dirname, 'data/orders.json');
+const usersPath = path.join(__dirname, 'data/users.json');
+const logsPath = path.join(__dirname, 'data/logs.json');
+const pixConfigPath = path.join(__dirname, 'data/pix-config.json');
 
-// Ensure data folder exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// Garantir que a pasta de dados existe
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+// Configuração Padrão de Chave PIX
+if (!fs.existsSync(pixConfigPath)) {
+  const pixPadrao = {
+    chavePix: 'festadomorango@exemplo.com',
+    tipoChave: 'email',
+    nomeBeneficiario: 'Festa do Morango',
+    cidadeBeneficiario: 'SAO PAULO'
+  };
+  fs.writeFileSync(pixConfigPath, JSON.stringify(pixPadrao, null, 2), 'utf-8');
 }
 
 // Helpers for Reading & Writing JSON Files safely
@@ -187,6 +200,44 @@ app.delete('/api/users/:id', (req, res) => {
 // 1. Obter todos os pedidos
 app.get('/api/orders', (req, res) => {
   res.json(orders);
+});
+
+// ----------------------------------------------------
+// PIX CONFIGURATION ENDPOINTS
+// ----------------------------------------------------
+app.get('/api/pix-config', (req, res) => {
+  try {
+    const pixData = readJSON(pixConfigPath, {
+      chavePix: 'festadomorango@exemplo.com',
+      tipoChave: 'email',
+      nomeBeneficiario: 'Festa do Morango',
+      cidadeBeneficiario: 'SAO PAULO'
+    });
+    res.json(pixData);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao ler configuração PIX.' });
+  }
+});
+
+app.post('/api/pix-config', (req, res) => {
+  try {
+    const { chavePix, tipoChave, nomeBeneficiario, cidadeBeneficiario } = req.body;
+    if (!chavePix || !nomeBeneficiario) {
+      return res.status(400).json({ error: 'Chave PIX e Nome do Beneficiário são obrigatórios.' });
+    }
+
+    const novaConfig = {
+      chavePix: String(chavePix).trim(),
+      tipoChave: String(tipoChave || 'email').trim(),
+      nomeBeneficiario: String(nomeBeneficiario).trim(),
+      cidadeBeneficiario: String(cidadeBeneficiario || 'SAO PAULO').trim().toUpperCase()
+    };
+
+    writeJSON(pixConfigPath, novaConfig);
+    res.json({ status: 'success', data: novaConfig });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao salvar chave PIX.' });
+  }
 });
 
 // GET /api/logs - Obter histórico de auditoria

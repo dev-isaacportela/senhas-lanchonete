@@ -21,11 +21,55 @@ export default function UsuariosView({ operador }) {
   // Check permission (Master only)
   const isMaster = operador && operador.role === 'master';
 
+  const [pixConfig, setPixConfig] = useState({
+    chavePix: '',
+    tipoChave: 'email',
+    nomeBeneficiario: '',
+    cidadeBeneficiario: 'SAO PAULO'
+  });
+  const [salvandoPix, setSalvandoPix] = useState(false);
+
   useEffect(() => {
     if (isMaster) {
       carregarUsuarios();
+      carregarPixConfig();
     }
   }, [isMaster]);
+
+  const carregarPixConfig = () => {
+    fetch('/api/pix-config')
+      .then(res => res.json())
+      .then(dados => {
+        if (dados && dados.chavePix) {
+          setPixConfig(dados);
+        }
+      })
+      .catch(err => console.error('Erro ao carregar PIX config:', err));
+  };
+
+  const handleSalvarPixConfig = (e) => {
+    e.preventDefault();
+    setSalvandoPix(true);
+    fetch('/api/pix-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(pixConfig)
+    })
+      .then(res => res.json())
+      .then(data => {
+        setSalvandoPix(false);
+        if (data && data.status === 'success') {
+          setMensagemSucesso('Chave PIX atualizada com sucesso!');
+          setTimeout(() => setMensagemSucesso(null), 4000);
+        } else {
+          alert(data.error || 'Erro ao salvar chave PIX.');
+        }
+      })
+      .catch(() => {
+        setSalvandoPix(false);
+        alert('Erro de conexão ao salvar chave PIX.');
+      });
+  };
 
   const carregarUsuarios = () => {
     fetch('/api/users')
@@ -324,6 +368,75 @@ export default function UsuariosView({ operador }) {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Card de Configuração da Chave PIX (Admin/Master) */}
+      <div style={{ background: 'var(--app-surface-1)', border: '1px solid var(--app-border)', borderRadius: 'var(--radius-lg)', padding: '1.25rem' }}>
+        <h3 style={{ color: 'var(--text-title)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <Key size={20} color="var(--primary)" />
+          <span>Configuração da Chave PIX do Estabelecimento</span>
+        </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--app-ink-muted)', marginBottom: '1rem' }}>
+          Esta chave PIX será utilizada para gerar automaticamente o <strong>QR Code PIX com valor dinâmico</strong> para o cliente no Caixa.
+        </p>
+
+        <form onSubmit={handleSalvarPixConfig} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', alignItems: 'end' }}>
+          <div className="form-group">
+            <label className="form-label">Tipo de Chave PIX *</label>
+            <select
+              className="form-input"
+              value={pixConfig.tipoChave}
+              onChange={(e) => setPixConfig({ ...pixConfig, tipoChave: e.target.value })}
+            >
+              <option value="email">E-mail</option>
+              <option value="cpf_cnpj">CPF / CNPJ</option>
+              <option value="telefone">Telefone (DDD + Número)</option>
+              <option value="aleatoria">Chave Aleatória (EVP)</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Chave PIX *</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: festadomorango@gmail.com"
+              value={pixConfig.chavePix}
+              onChange={(e) => setPixConfig({ ...pixConfig, chavePix: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Nome do Beneficiário *</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: Festa do Morango"
+              value={pixConfig.nomeBeneficiario}
+              onChange={(e) => setPixConfig({ ...pixConfig, nomeBeneficiario: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Cidade *</label>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Ex: SAO PAULO"
+              value={pixConfig.cidadeBeneficiario}
+              onChange={(e) => setPixConfig({ ...pixConfig, cidadeBeneficiario: e.target.value })}
+              required
+            />
+          </div>
+
+          <div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={salvandoPix}>
+              {salvandoPix ? 'Salvando...' : 'Salvar Chave PIX'}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Modal Criar / Editar Usuário */}
