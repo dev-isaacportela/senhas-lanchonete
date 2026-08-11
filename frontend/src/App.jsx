@@ -25,7 +25,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', tema);
     document.body.setAttribute('data-theme', tema);
+    localStorage.setItem('tema_lanchonete', tema);
   }, [tema]);
+
+  // Alternar entre Tema Claro e Escuro
+  const toggleTema = () => {
+    setTema(atual => (atual === 'escuro' ? 'claro' : 'escuro'));
+  };
 
   // Operador Autenticado State
   const [operador, setOperador] = useState(() => {
