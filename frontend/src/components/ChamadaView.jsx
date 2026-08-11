@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Tv, Volume2, VolumeX, CheckCircle, Bell, ArrowRight, UserCheck, CheckSquare, Square, PackageCheck } from 'lucide-react';
+import { Tv, Volume2, VolumeX, CheckCircle, Bell, ArrowRight, UserCheck, CheckSquare, Square, PackageCheck, Play } from 'lucide-react';
 import { playChimeSound } from '../utils/audioChime';
 
 export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatus, onAlternarItemEntregue }) {
   const [somAtivo, setSomAtivo] = useState(true);
+  const [destaqueIdManual, setDestaqueIdManual] = useState(null);
 
   // Trigger sound chime whenever a new order is called
   useEffect(() => {
     if (ultimoPedidoChamado && (ultimoPedidoChamado.status === 'pronto' || ultimoPedidoChamado.status === 'entrega_parcial') && somAtivo) {
       playChimeSound();
+      // Ao receber uma nova chamada da cozinha via som/chime, focar automaticamente nele
+      setDestaqueIdManual(ultimoPedidoChamado.id);
     }
   }, [ultimoPedidoChamado, somAtivo]);
 
@@ -18,13 +21,33 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
     .slice(0, 8); // Mostrar os últimos 8 entregues
 
   // Buscar a versão em tempo real atualizada do pedido em destaque diretamente no array de pedidos do React
-  const pedidoEmDestaqueLive = ultimoPedidoChamado
-    ? pedidos.find(p => p.id === ultimoPedidoChamado.id)
-    : null;
+  const pedidoEmDestaqueLive = destaqueIdManual
+    ? pedidos.find(p => p.id === destaqueIdManual)
+    : (ultimoPedidoChamado ? pedidos.find(p => p.id === ultimoPedidoChamado.id) : null);
 
   const pedidoEmDestaque = (pedidoEmDestaqueLive && (pedidoEmDestaqueLive.status === 'pronto' || pedidoEmDestaqueLive.status === 'entrega_parcial'))
     ? pedidoEmDestaqueLive
     : pedidosProntos[0];
+
+  const handleProximoDaFila = () => {
+    if (!pedidoEmDestaque || pedidosProntos.length <= 1) return;
+    const idxAtual = pedidosProntos.findIndex(p => p.id === pedidoEmDestaque.id);
+    const proximo = pedidosProntos[(idxAtual + 1) % pedidosProntos.length];
+    if (proximo) {
+      setDestaqueIdManual(proximo.id);
+    }
+  };
+
+  const handleFinalizarEAvancar = (pedidoId) => {
+    onMudarStatus(pedidoId, 'entregue');
+    // Ao finalizar o pedido atual, avança para o próximo da fila de prontos
+    const restantes = pedidosProntos.filter(p => p.id !== pedidoId);
+    if (restantes.length > 0) {
+      setDestaqueIdManual(restantes[0].id);
+    } else {
+      setDestaqueIdManual(null);
+    }
+  };
 
   return (
     <div className="chamada-tv-container">
@@ -47,7 +70,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           background: var(--app-surface-1);
           border: 1px solid var(--app-border);
           border-radius: var(--radius-lg);
-          padding: 2rem;
+          padding: 1.5rem;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -67,7 +90,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
         .destaque-label {
           font-family: var(--font-display);
-          font-size: 1.2rem;
+          font-size: 1.15rem;
           font-weight: 700;
           color: var(--status-pronto);
           text-transform: uppercase;
@@ -75,7 +98,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           display: flex;
           align-items: center;
           gap: 0.6rem;
-          margin-bottom: 1rem;
+          margin-bottom: 0.85rem;
         }
 
         .destaque-card {
@@ -84,7 +107,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           background: var(--app-surface-2);
           border: 3px solid var(--status-pronto);
           border-radius: var(--radius-lg);
-          padding: clamp(1.2rem, 3vw, 2rem) clamp(1rem, 3vw, 1.5rem);
+          padding: clamp(1.2rem, 3vw, 1.8rem) clamp(1rem, 3vw, 1.5rem);
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -93,7 +116,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
         .destaque-comanda {
           font-family: var(--font-display);
-          font-size: clamp(2.5rem, 8vw, 4rem);
+          font-size: clamp(2.5rem, 7vw, 3.8rem);
           font-weight: 900;
           color: var(--text-title);
           line-height: 1;
@@ -101,7 +124,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
         .destaque-cliente {
           font-family: var(--font-display);
-          font-size: clamp(1.8rem, 6vw, 3rem);
+          font-size: clamp(1.8rem, 5vw, 2.8rem);
           font-weight: 900;
           color: var(--status-pronto);
           text-transform: uppercase;
@@ -147,10 +170,11 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
         }
 
         .destaque-acoes {
-          margin-top: 1rem;
+          margin-top: 0.85rem;
           width: 100%;
           display: flex;
-          gap: 0.5rem;
+          gap: 0.6rem;
+          flex-wrap: wrap;
         }
 
         .tv-sidebar {
@@ -187,7 +211,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           flex-direction: column;
           gap: 0.75rem;
           overflow-y: auto;
-          max-height: 280px;
+          max-height: 320px;
         }
 
         @media (max-width: 1024px) {
@@ -201,7 +225,7 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
           background: var(--app-surface-2);
           border: 1px solid var(--status-pronto);
           border-radius: var(--radius-md);
-          padding: 0.8rem 1rem;
+          padding: 0.75rem 0.9rem;
           display: flex;
           justify-content: space-between;
           align-items: center;
@@ -211,6 +235,11 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
 
         .pronto-item:hover {
           background: var(--app-border);
+        }
+
+        .pronto-item.item-ativo-tv {
+          border: 2px solid var(--primary);
+          background: rgba(21, 107, 22, 0.08);
         }
 
         .entregues-lista {
@@ -325,11 +354,21 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
             <div className="destaque-acoes">
               <button
                 className="btn btn-success"
-                style={{ flex: 1, padding: '0.9rem', fontSize: '1.05rem', borderRadius: 'var(--radius-md)' }}
-                onClick={() => onMudarStatus(pedidoEmDestaque.id, 'entregue')}
+                style={{ flex: 2, padding: '0.85rem', fontSize: '1rem', borderRadius: 'var(--radius-md)', fontWeight: 700 }}
+                onClick={() => handleFinalizarEAvancar(pedidoEmDestaque.id)}
               >
-                <UserCheck size={20} /> Finalizar & Entregar Todos os Itens
+                <UserCheck size={20} /> Finalizar & Entregar Todos
               </button>
+
+              {pedidosProntos.length > 1 && (
+                <button
+                  className="btn btn-secondary"
+                  style={{ flex: 1, padding: '0.85rem', fontSize: '0.88rem', borderRadius: 'var(--radius-md)', fontWeight: 600 }}
+                  onClick={handleProximoDaFila}
+                >
+                  <ArrowRight size={18} /> Próximo da Fila
+                </button>
+              )}
             </div>
           </div>
         ) : (
@@ -356,26 +395,50 @@ export default function ChamadaView({ pedidos, ultimoPedidoChamado, onMudarStatu
                 Nenhum outro pedido pronto no momento.
               </span>
             ) : (
-              pedidosProntos.map(p => (
-                <div
-                  key={p.id}
-                  className="pronto-item"
-                  onClick={() => onMudarStatus(p.id, 'entregue')}
-                >
-                  <div>
-                    <strong style={{ fontSize: '1.1rem', color: 'var(--text-title)' }}>#{p.numero}</strong>
-                    <div style={{ color: 'var(--status-pronto)', fontWeight: 700, fontSize: '0.95rem' }}>{p.cliente}</div>
-                    {p.status === 'entrega_parcial' && (
-                      <span className="badge badge-entregue" style={{ fontSize: '0.7rem', marginTop: '0.2rem' }}>
-                        PARCIAL ({p.itens ? p.itens.filter(i => i.entregue).length : 0}/{p.itens ? p.itens.length : 0})
-                      </span>
-                    )}
+              pedidosProntos.map(p => {
+                const isEmDestaque = pedidoEmDestaque && p.id === pedidoEmDestaque.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={`pronto-item ${isEmDestaque ? 'item-ativo-tv' : ''}`}
+                    onClick={() => setDestaqueIdManual(p.id)}
+                  >
+                    <div>
+                      <strong style={{ fontSize: '1.1rem', color: 'var(--text-title)' }}>#{p.numero}</strong>
+                      <div style={{ color: 'var(--status-pronto)', fontWeight: 700, fontSize: '0.95rem' }}>{p.cliente}</div>
+                      {p.status === 'entrega_parcial' && (
+                        <span className="badge badge-entregue" style={{ fontSize: '0.7rem', marginTop: '0.2rem' }}>
+                          PARCIAL ({p.itens ? p.itens.filter(i => i.entregue).length : 0}/{p.itens ? p.itens.length : 0})
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.3rem' }}>
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        style={{ padding: '0.35rem 0.55rem', fontSize: '0.78rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDestaqueIdManual(p.id);
+                        }}
+                      >
+                        {isEmDestaque ? 'Exibindo' : 'Exibir'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-success"
+                        style={{ padding: '0.35rem 0.55rem', fontSize: '0.78rem' }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleFinalizarEAvancar(p.id);
+                        }}
+                      >
+                        Entregar
+                      </button>
+                    </div>
                   </div>
-                  <button className="btn btn-secondary" style={{ padding: '0.4rem 0.6rem', fontSize: '0.8rem' }}>
-                    Entregue <ArrowRight size={14} />
-                  </button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

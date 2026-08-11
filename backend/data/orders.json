@@ -1,5 +1,37 @@
 [
   {
+    "id": "ORD-112",
+    "numero": 112,
+    "cliente": "1345",
+    "telefoneCliente": null,
+    "criadoPor": "Gerente Master",
+    "preparadoPor": "Gerente Master",
+    "formaPagamento": "pix",
+    "statusPagamento": "pago",
+    "dataCobranca": null,
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ],
+    "total": 49.4,
+    "status": "entrega_parcial",
+    "criadoEm": "2026-08-11T14:55:56.877Z",
+    "atualizadoEm": "2026-08-11T14:56:09.864Z"
+  },
+  {
     "id": "ORD-111",
     "numero": 111,
     "cliente": "testeee",
