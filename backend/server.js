@@ -784,5 +784,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor da Festa do Morango rodando na porta ${PORT}`);
   console.log(`👉 Acesse localmente: http://localhost:${PORT}`);
 });
+// Menu atualizado com a Tabela de Valores oficial da Festa do Morango
+
 
 

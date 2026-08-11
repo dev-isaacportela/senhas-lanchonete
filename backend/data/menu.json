@@ -1,65 +1,92 @@
 {
   "categorias": [
     {
-      "id": "lanches",
-      "nome": "Hambúrgueres & Lanches",
-      "icone": "burger"
+      "id": "doces_morango",
+      "nome": "Doces de Morango",
+      "icone": "dessert"
     },
     {
-      "id": "porcoes",
-      "nome": "Porções & Acompanhamentos",
-      "icone": "fries"
+      "id": "salgados",
+      "nome": "Salgados",
+      "icone": "pizza"
     },
     {
       "id": "bebidas",
-      "nome": "Bebidas & Sucos",
+      "nome": "Bebidas & Cremes",
       "icone": "drink"
-    },
-    {
-      "id": "sobremesas",
-      "nome": "Sobremesas",
-      "icone": "dessert"
     }
   ],
   "produtos": [
     {
-      "id": "prod-1",
-      "categoriaId": "lanches",
-      "nome": "X-Burguer Tradicional",
-      "descricao": "Pão brioche, hambúrguer artesanal 160g, queijo prato e maionese da casa",
-      "preco": 22.9,
+      "id": "prod-waffle",
+      "categoriaId": "doces_morango",
+      "nome": "Waffle",
+      "descricao": "Waffle crocante e quentinho",
+      "preco": 4,
       "disponivel": true
     },
     {
-      "id": "prod-2",
-      "categoriaId": "lanches",
-      "nome": "X-Salada Especial",
-      "descricao": "Hambúrguer 160g, queijo, alface, tomate, picles e molho especial",
-      "preco": 26.5,
+      "id": "prod-torta-morango",
+      "categoriaId": "doces_morango",
+      "nome": "Torta de morango",
+      "descricao": "Fatia de torta artesanal com morangos frescos",
+      "preco": 10,
       "disponivel": true
     },
     {
-      "id": "prod-3",
-      "categoriaId": "lanches",
-      "nome": "X-Bacon Supremo",
-      "descricao": "Double bacon crocante, hambúrguer 180g, cheddar fatiado e cebola caramelizada",
-      "preco": 32,
+      "id": "prod-torta-choc",
+      "categoriaId": "doces_morango",
+      "nome": "Torta de morango com chocolate",
+      "descricao": "Fatia de torta de morango com cobertura especial de chocolate",
+      "preco": 10,
       "disponivel": true
     },
     {
-      "id": "prod-4",
-      "categoriaId": "porcoes",
-      "nome": "Batata Frita Rustica",
-      "descricao": "Porção de batata frita com alho, alecrim e maionese temperada (400g)",
-      "preco": 19.9,
+      "id": "prod-espeto-morango",
+      "categoriaId": "doces_morango",
+      "nome": "Espeto de morango",
+      "descricao": "Espeto de morangos frescos cobertos com chocolate",
+      "preco": 8.5,
       "disponivel": true
     },
     {
-      "id": "prod-5",
-      "categoriaId": "porcoes",
-      "nome": "Nuggets Crocantes (10 un)",
-      "descricao": "Acompanha molho barbecue e maionese verde",
-      "preco": 18,
+      "id": "prod-bombom-amor",
+      "categoriaId": "doces_morango",
+      "nome": "Bombom do amor",
+      "descricao": "Bombom especial recheado com morango fresco",
+      "preco": 10,
+      "disponivel": true
+    },
+    {
+      "id": "prod-morango-amor",
+      "categoriaId": "doces_morango",
+      "nome": "Morango do amor",
+      "descricao": "Morango fresco com casquinha crocante",
+      "preco": 10,
+      "disponivel": true
+    },
+    {
+      "id": "prod-pizza",
+      "categoriaId": "salgados",
+      "nome": "Pizza",
+      "descricao": "Fatia de pizza saborosa e quentinha",
+      "preco": 7,
+      "disponivel": true
+    },
+    {
+      "id": "prod-suco",
+      "categoriaId": "bebidas",
+      "nome": "Suco",
+      "descricao": "Suco natural geladinho",
+      "preco": 4.5,
+      "disponivel": true
+    },
+    {
+      "id": "prod-creme",
+      "categoriaId": "bebidas",
+      "nome": "Creme",
+      "descricao": "Creme especial servido gelado",
+      "preco": 7,
       "disponivel": true
     }
   ]
