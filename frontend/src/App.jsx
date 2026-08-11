@@ -19,7 +19,7 @@ export default function App() {
   const [visaoAtiva, setVisaoAtiva] = useState('caixa'); // caixa | cozinha | chamada | cardapio | vendas | usuarios | logs
   const [conectado, setConectado] = useState(false);
   const [tema, setTema] = useState(() => {
-    return localStorage.getItem('tema_lanchonete') || 'escuro';
+    return localStorage.getItem('tema_lanchonete') || 'claro';
   });
 
   // Operador Autenticado State
