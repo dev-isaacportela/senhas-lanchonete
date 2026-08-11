@@ -673,3 +673,4 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor da Festa do Morango rodando na porta ${PORT}`);
   console.log(`👉 Acesse localmente: http://localhost:${PORT}`);
 });
+
