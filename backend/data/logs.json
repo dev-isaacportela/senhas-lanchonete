@@ -1,5 +1,113 @@
 [
   {
+    "id": "log-1786459830763-xw8g",
+    "timestamp": "2026-08-11T14:50:30.763Z",
+    "pedidoId": "ORD-111",
+    "numeroPedido": 111,
+    "cliente": "testeee",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Burguer Tradicional' do Pedido #111 (testeee) [Entrega Parcial 1/2 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459830759-fixj",
+    "timestamp": "2026-08-11T14:50:30.759Z",
+    "pedidoId": "ORD-111",
+    "numeroPedido": 111,
+    "cliente": "testeee",
+    "usuario": "Gerente Master",
+    "acao": "status",
+    "descricao": "Entregou item '1x X-Burguer Tradicional' do Pedido #111 (testeee) [Entrega Parcial 1/2 itens]",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459828612-bbm8",
+    "timestamp": "2026-08-11T14:50:28.612Z",
+    "pedidoId": "ORD-111",
+    "numeroPedido": 111,
+    "cliente": "testeee",
+    "usuario": "Gerente Master",
+    "acao": "pronto",
+    "descricao": "Marcou o Pedido #111 (testeee) como PRONTO e chamou no balcão",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
+    "id": "log-1786459826412-mhwk",
+    "timestamp": "2026-08-11T14:50:26.412Z",
+    "pedidoId": "ORD-111",
+    "numeroPedido": 111,
+    "cliente": "testeee",
+    "usuario": "Gerente Master",
+    "acao": "preparo",
+    "descricao": "Iniciou o preparo do Pedido #111 (testeee)",
+    "itens": [
+      {
+        "id": "prod-1",
+        "nome": "X-Burguer Tradicional",
+        "preco": 22.9,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-2",
+        "nome": "X-Salada Especial",
+        "preco": 26.5,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ]
+  },
+  {
     "id": "log-1786459739192-vi94",
     "timestamp": "2026-08-11T14:48:59.192Z",
     "pedidoId": "ORD-111",
@@ -14,7 +122,8 @@
         "nome": "X-Burguer Tradicional",
         "preco": 22.9,
         "quantidade": 1,
-        "observacao": ""
+        "observacao": "",
+        "entregue": true
       },
       {
         "id": "prod-2",

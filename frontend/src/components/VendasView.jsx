@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { DollarSign, BarChart3, ShoppingBag, TrendingUp, CheckCircle, Clock, ShieldAlert, Calendar, Check, CreditCard, Phone, ChevronDown, ChevronUp, User, Search, Filter, RefreshCw, FileText, Tag, ArrowRight } from 'lucide-react';
+import { DollarSign, BarChart3, ShoppingBag, TrendingUp, CheckCircle, Clock, ShieldAlert, Calendar, Check, CreditCard, Phone, ChevronDown, ChevronUp, User, Search, Filter, RefreshCw, FileText, Tag, ArrowRight, Layers } from 'lucide-react';
 
 export default function VendasView({ pedidos, operador }) {
   const [expandidoId, setExpandidoId] = useState(null);
@@ -155,21 +155,102 @@ export default function VendasView({ pedidos, operador }) {
           gap: 0.75rem;
         }
 
-        .vendas-filtros-bar {
+        /* Card Elegante de Filtros */
+        .vendas-filtros-card {
           background: var(--app-surface-1);
           border: 1px solid var(--app-border);
           border-radius: var(--radius-lg);
-          padding: 1rem 1.25rem;
+          padding: 1.2rem;
           display: flex;
           flex-direction: column;
-          gap: 0.85rem;
+          gap: 1.1rem;
         }
 
-        .filtros-row {
+        .vendas-filter-section {
+          display: flex;
+          flex-direction: column;
+          gap: 0.45rem;
+        }
+
+        .vendas-filter-label {
+          font-size: 0.78rem;
+          font-weight: 700;
+          color: var(--app-ink-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
           display: flex;
           align-items: center;
-          gap: 0.75rem;
+          gap: 0.4rem;
+        }
+
+        .vendas-pill-group {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
           flex-wrap: wrap;
+        }
+
+        .vendas-pill-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.4rem;
+          padding: 0.5rem 1rem;
+          border-radius: var(--radius-pill);
+          background: var(--app-surface-2);
+          border: 1px solid var(--app-border);
+          color: var(--app-ink);
+          font-family: var(--font-body);
+          font-size: 0.88rem;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 130ms ease;
+          min-height: 38px;
+          outline: none;
+          box-shadow: none !important;
+        }
+
+        .vendas-pill-btn:hover {
+          background: var(--app-border);
+          color: var(--text-title);
+        }
+
+        .vendas-pill-btn.active {
+          background: var(--primary) !important;
+          color: var(--on-primary) !important;
+          border-color: var(--primary) !important;
+          font-weight: 700;
+        }
+
+        .vendas-search-row {
+          display: flex;
+          gap: 0.75rem;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .vendas-search-box {
+          display: flex;
+          align-items: center;
+          gap: 0.6rem;
+          background: var(--app-surface-2);
+          border: 1px solid var(--app-border);
+          border-radius: var(--radius-pill);
+          padding: 0.5rem 1rem;
+          flex: 1;
+          min-width: 260px;
+          min-height: 42px;
+        }
+
+        .vendas-search-input {
+          border: none !important;
+          background: transparent !important;
+          color: var(--text-title) !important;
+          font-family: var(--font-body);
+          font-weight: 600;
+          font-size: 0.92rem;
+          outline: none;
+          width: 100%;
         }
 
         .metrics-grid {
@@ -315,76 +396,82 @@ export default function VendasView({ pedidos, operador }) {
         </div>
       </div>
 
-      {/* Barra de Filtros por Período, Busca e Status */}
-      <div className="vendas-filtros-bar">
-        <div className="filtros-row">
-          {/* Caixa de Busca */}
-          <div className="search-box">
+      {/* Card Elegante de Filtros por Período, Busca e Status */}
+      <div className="vendas-filtros-card">
+        {/* Linha 1: Caixa de Busca e Filtro de Períodos */}
+        <div className="vendas-search-row">
+          <div className="vendas-search-box">
             <Search size={18} color="var(--primary)" />
             <input
               type="text"
-              className="search-input"
-              placeholder="Buscar comanda #, cliente ou WhatsApp..."
+              className="vendas-search-input"
+              placeholder="Buscar por comanda #, nome do cliente ou WhatsApp..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
             />
           </div>
 
-          {/* Filtro de Período / Data */}
-          <div className="cat-pills">
-            <button
-              className={`cat-btn ${filtroPeriodo === 'hoje' ? 'active' : ''}`}
-              onClick={() => setFiltroPeriodo('hoje')}
-            >
-              Hoje
-            </button>
-            <button
-              className={`cat-btn ${filtroPeriodo === 'ontem' ? 'active' : ''}`}
-              onClick={() => setFiltroPeriodo('ontem')}
-            >
-              Ontem
-            </button>
-            <button
-              className={`cat-btn ${filtroPeriodo === '7dias' ? 'active' : ''}`}
-              onClick={() => setFiltroPeriodo('7dias')}
-            >
-              Últimos 7 dias
-            </button>
-            <button
-              className={`cat-btn ${filtroPeriodo === 'todos' ? 'active' : ''}`}
-              onClick={() => setFiltroPeriodo('todos')}
-            >
-              Todos os Períodos
-            </button>
-            <button
-              className={`cat-btn ${filtroPeriodo === 'custom' ? 'active' : ''}`}
-              onClick={() => setFiltroPeriodo('custom')}
-            >
-              Data Personalizada
-            </button>
+          <div className="vendas-filter-section">
+            <div className="vendas-pill-group">
+              <button
+                type="button"
+                className={`vendas-pill-btn ${filtroPeriodo === 'hoje' ? 'active' : ''}`}
+                onClick={() => setFiltroPeriodo('hoje')}
+              >
+                <Calendar size={14} /> Hoje
+              </button>
+              <button
+                type="button"
+                className={`vendas-pill-btn ${filtroPeriodo === 'ontem' ? 'active' : ''}`}
+                onClick={() => setFiltroPeriodo('ontem')}
+              >
+                <Clock size={14} /> Ontem
+              </button>
+              <button
+                type="button"
+                className={`vendas-pill-btn ${filtroPeriodo === '7dias' ? 'active' : ''}`}
+                onClick={() => setFiltroPeriodo('7dias')}
+              >
+                <Calendar size={14} /> Últimos 7 dias
+              </button>
+              <button
+                type="button"
+                className={`vendas-pill-btn ${filtroPeriodo === 'todos' ? 'active' : ''}`}
+                onClick={() => setFiltroPeriodo('todos')}
+              >
+                <Layers size={14} /> Todos os Períodos
+              </button>
+              <button
+                type="button"
+                className={`vendas-pill-btn ${filtroPeriodo === 'custom' ? 'active' : ''}`}
+                onClick={() => setFiltroPeriodo('custom')}
+              >
+                <Filter size={14} /> Data Personalizada
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Inputs de Data Personalizada se filtroPeriodo === 'custom' */}
         {filtroPeriodo === 'custom' && (
-          <div className="filtros-row" style={{ background: 'var(--app-surface-2)', padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-md)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
+          <div className="vendas-search-row" style={{ background: 'var(--app-surface-2)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--app-border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
               <Calendar size={16} color="var(--primary)" />
-              <span>De:</span>
+              <span style={{ color: 'var(--text-title)' }}>Data Inicial:</span>
               <input
                 type="date"
                 className="form-input"
-                style={{ minHeight: '36px', padding: '0.3rem 0.6rem' }}
+                style={{ minHeight: '38px', padding: '0.35rem 0.7rem' }}
                 value={dataInicio}
                 onChange={(e) => setDataInicio(e.target.value)}
               />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 600 }}>
-              <span>Até:</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
+              <span style={{ color: 'var(--text-title)' }}>Data Final:</span>
               <input
                 type="date"
                 className="form-input"
-                style={{ minHeight: '36px', padding: '0.3rem 0.6rem' }}
+                style={{ minHeight: '38px', padding: '0.35rem 0.7rem' }}
                 value={dataFim}
                 onChange={(e) => setDataFim(e.target.value)}
               />
@@ -392,38 +479,44 @@ export default function VendasView({ pedidos, operador }) {
           </div>
         )}
 
-        {/* Filtros de Status (Pagos / Fiado / Entregues) */}
-        <div className="filtros-row" style={{ paddingTop: '0.2rem', borderTop: '1px dashed var(--app-border)' }}>
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--app-ink-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Filtrar por Status:
-          </span>
-          <div className="cat-pills">
+        {/* Linha 2: Filtros de Status (Pagos / Fiado / Entregues / Cancelados) */}
+        <div className="vendas-filter-section" style={{ paddingTop: '0.6rem', borderTop: '1px dashed var(--app-border)' }}>
+          <div className="vendas-filter-label">
+            <Tag size={13} color="var(--primary)" />
+            <span>Filtrar por Status de Pagamento & Pedido:</span>
+          </div>
+          <div className="vendas-pill-group">
             <button
-              className={`cat-btn ${filtroStatus === 'todos' ? 'active' : ''}`}
+              type="button"
+              className={`vendas-pill-btn ${filtroStatus === 'todos' ? 'active' : ''}`}
               onClick={() => setFiltroStatus('todos')}
             >
               Todos os Pedidos
             </button>
             <button
-              className={`cat-btn ${filtroStatus === 'pagos' ? 'active' : ''}`}
+              type="button"
+              className={`vendas-pill-btn ${filtroStatus === 'pagos' ? 'active' : ''}`}
               onClick={() => setFiltroStatus('pagos')}
             >
-              Quitados / Pagos
+              <CheckCircle size={14} /> Quitados / Pagos
             </button>
             <button
-              className={`cat-btn ${filtroStatus === 'fiado' ? 'active' : ''}`}
+              type="button"
+              className={`vendas-pill-btn ${filtroStatus === 'fiado' ? 'active' : ''}`}
               onClick={() => setFiltroStatus('fiado')}
             >
-              Pagar Depois (Fiado)
+              <Clock size={14} /> Pagar Depois (Fiado)
             </button>
             <button
-              className={`cat-btn ${filtroStatus === 'entregues' ? 'active' : ''}`}
+              type="button"
+              className={`vendas-pill-btn ${filtroStatus === 'entregues' ? 'active' : ''}`}
               onClick={() => setFiltroStatus('entregues')}
             >
               Entregues
             </button>
             <button
-              className={`cat-btn ${filtroStatus === 'cancelados' ? 'active' : ''}`}
+              type="button"
+              className={`vendas-pill-btn ${filtroStatus === 'cancelados' ? 'active' : ''}`}
               onClick={() => setFiltroStatus('cancelados')}
             >
               Cancelados
