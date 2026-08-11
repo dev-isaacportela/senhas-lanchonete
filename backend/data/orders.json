@@ -1,5 +1,44 @@
 [
   {
+    "id": "ORD-113",
+    "numero": 113,
+    "cliente": "teset",
+    "telefoneCliente": null,
+    "criadoPor": "Gerente Master",
+    "preparadoPor": "Gerente Master",
+    "formaPagamento": "pix",
+    "statusPagamento": "pago",
+    "dataCobranca": null,
+    "itens": [
+      {
+        "id": "prod-5",
+        "nome": "Nuggets Crocantes (10 un)",
+        "preco": 18,
+        "quantidade": 1,
+        "observacao": "",
+        "entregue": true
+      },
+      {
+        "id": "prod-4",
+        "nome": "Batata Frita Rustica",
+        "preco": 19.9,
+        "quantidade": 1,
+        "observacao": ""
+      },
+      {
+        "id": "prod-3",
+        "nome": "X-Bacon Supremo",
+        "preco": 32,
+        "quantidade": 1,
+        "observacao": ""
+      }
+    ],
+    "total": 69.9,
+    "status": "entrega_parcial",
+    "criadoEm": "2026-08-11T14:59:36.478Z",
+    "atualizadoEm": "2026-08-11T14:59:55.225Z"
+  },
+  {
     "id": "ORD-112",
     "numero": 112,
     "cliente": "1345",
@@ -29,7 +68,7 @@
     "total": 49.4,
     "status": "entrega_parcial",
     "criadoEm": "2026-08-11T14:55:56.877Z",
-    "atualizadoEm": "2026-08-11T14:56:09.864Z"
+    "atualizadoEm": "2026-08-11T14:59:58.085Z"
   },
   {
     "id": "ORD-111",

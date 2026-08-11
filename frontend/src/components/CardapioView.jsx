@@ -40,8 +40,13 @@ export default function CardapioView({
   const [catNome, setCatNome] = useState('');
   const [catIcone, setCatIcone] = useState('burger');
 
-  const categorias = menu?.categorias || [];
-  const produtos = menu?.produtos || [];
+  const categorias = Array.isArray(menu?.categorias)
+    ? menu.categorias
+    : [];
+
+  const produtos = Array.isArray(menu?.produtos)
+    ? menu.produtos
+    : (Array.isArray(menu) ? menu : []);
 
   // Filtering products
   const produtosFiltrados = produtos.filter(p => {

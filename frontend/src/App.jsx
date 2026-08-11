@@ -43,22 +43,26 @@ export default function App() {
   const [carregandoAuth, setCarregandoAuth] = useState(false);
 
   const [pedidos, setPedidos] = useState([]);
-  const [menu, setMenu] = useState([]);
+  const [menu, setMenu] = useState({ categorias: [], produtos: [] });
   const [logs, setLogs] = useState([]);
   const [ultimoPedidoChamado, setUltimoPedidoChamado] = useState(null);
 
-  // Apply theme to html data-theme attribute
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', tema);
-    localStorage.setItem('tema_lanchonete', tema);
-  }, [tema]);
-
-  const toggleTema = () => {
-    setTema(prev => prev === 'escuro' ? 'claro' : 'escuro');
+  const formatarMenu = (dados) => {
+    if (!dados) return { categorias: [], produtos: [] };
+    if (Array.isArray(dados)) return { categorias: [], produtos: dados };
+    return {
+      categorias: Array.isArray(dados.categorias) ? dados.categorias : [],
+      produtos: Array.isArray(dados.produtos) ? dados.produtos : []
+    };
   };
 
-  // Fetch initial logs
+  // Fetch initial menu & logs via REST API
   useEffect(() => {
+    fetch('/api/menu')
+      .then(res => res.json())
+      .then(dados => setMenu(formatarMenu(dados)))
+      .catch(err => console.error('Erro ao carregar cardápio via REST:', err));
+
     fetch('/api/logs')
       .then(res => res.json())
       .then(dados => setLogs(dados))
@@ -132,7 +136,7 @@ export default function App() {
     });
 
     socket.on('cardapio_inicial', (dados) => {
-      setMenu(Array.isArray(dados) ? dados : (dados && Array.isArray(dados.produtos) ? dados.produtos : []));
+      setMenu(formatarMenu(dados));
     });
 
     // Eventos em tempo real
@@ -150,7 +154,7 @@ export default function App() {
     });
 
     socket.on('cardapio_atualizado', (novoMenu) => {
-      setMenu(Array.isArray(novoMenu) ? novoMenu : (novoMenu && Array.isArray(novoMenu.produtos) ? novoMenu.produtos : []));
+      setMenu(formatarMenu(novoMenu));
     });
 
     socket.on('novo_log_auditoria', (novoLog) => {
