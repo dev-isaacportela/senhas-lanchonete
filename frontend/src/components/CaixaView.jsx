@@ -26,7 +26,7 @@ function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
   const cityField = formatField('60', cleanCidade);
 
   const txIdField = formatField('05', txtId || '***');
-  const addDataField = formatField('62', txIdField);
+  const addDataField = formatField('62', txtIdField);
 
   const payloadSemCRC = `000201${merchantAccountInfo}${mcc}${currency}${amount}${country}${nameField}${cityField}${addDataField}6304`;
 
@@ -278,17 +278,17 @@ export default function CaixaView({ socket, menu, operador }) {
             display: grid;
           }
 
-          .caixa-cardapio-col {
-            display: ${mobileTab === 'cardapio' ? 'flex' : 'none'};
-          }
-
           .caixa-carrinho-col {
-            display: ${mobileTab === 'carrinho' ? 'flex' : 'none'};
             padding-bottom: 6rem !important;
           }
 
-          .mobile-cart-float-bar {
-            display: ${mobileTab === 'cardapio' && carrinho.length > 0 ? 'flex' : 'none'};
+          .caixa-cardapio-col.mobile-hidden,
+          .caixa-carrinho-col.mobile-hidden {
+            display: none !important;
+          }
+
+          .mobile-cart-float-bar.mobile-show-float {
+            display: flex !important;
           }
         }
 
@@ -651,7 +651,7 @@ export default function CaixaView({ socket, menu, operador }) {
       </div>
 
       {/* Coluna 1: Cardápio de Produtos */}
-      <div className="caixa-cardapio-col">
+      <div className={`caixa-cardapio-col ${mobileTab !== 'cardapio' ? 'mobile-hidden' : ''}`}>
         <div className="view-title" style={{ margin: 0 }}>
           <ShoppingBag size={24} color="var(--primary)" />
           <span>Cardápio - Lançar Pedidos</span>
@@ -700,7 +700,7 @@ export default function CaixaView({ socket, menu, operador }) {
       </div>
 
       {/* Coluna 2: Carrinho / Comanda Atual */}
-      <div className="caixa-carrinho-col">
+      <div className={`caixa-carrinho-col ${mobileTab !== 'carrinho' ? 'mobile-hidden' : ''}`}>
         <div className="carrinho-header">
           <div className="carrinho-title">
             <ShoppingBag size={20} color="var(--primary)" />
@@ -962,7 +962,10 @@ export default function CaixaView({ socket, menu, operador }) {
       )}
 
       {/* Barra Flutuante de Atalho do Carrinho em Mobile */}
-      <div className="mobile-cart-float-bar" onClick={() => setMobileTab('carrinho')}>
+      <div
+        className={`mobile-cart-float-bar ${mobileTab === 'cardapio' && carrinho.length > 0 ? 'mobile-show-float' : ''}`}
+        onClick={() => setMobileTab('carrinho')}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <ShoppingBag size={20} />
           <span>Ver Pedido ({totalItensQtd} {totalItensQtd === 1 ? 'item' : 'itens'})</span>
