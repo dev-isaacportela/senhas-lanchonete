@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Plus, Minus, Trash2, Send, CheckCircle2, FileText, User, Tag, Clock, Calendar, Phone, AlertCircle, CreditCard, DollarSign, QrCode, Copy, Check, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ShoppingBag, Plus, Minus, Trash2, Send, CheckCircle2, FileText, User, Tag, Clock, Calendar, Phone, AlertCircle, CreditCard, DollarSign, QrCode, Copy, Check, X, Printer } from 'lucide-react';
 
 // Função utilitária oficial do Banco Central (BACEN) para geração de Payload PIX (BR Code EMV) + CRC16
 function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
@@ -45,11 +45,26 @@ function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
   return `${payloadSemCRC}${crcHex}`;
 }
 
-export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
+export default function CaixaView({
+  socket,
+  menu,
+  operador,
+  onEnviarPedido,
+  onReservarItem,
+  onLiberarItem,
+  onLiberarCarrinho
+}) {
   const [cliente, setCliente] = useState('');
   const [carrinho, setCarrinho] = useState([]);
   const [categoriaAtiva, setCategoriaAtiva] = useState('todas');
   const [sucessoMsg, setSucessoMsg] = useState(null);
+  const [erroEstoque, setErroEstoque] = useState(null);
+
+  // Último pedido fechado, para o caixa conseguir imprimir o comprovante
+  // depois de enviar. Fica na tela até o próximo pedido ou até ser fechado.
+  const [ultimoPedido, setUltimoPedido] = useState(null);
+  const [statusImpressao, setStatusImpressao] = useState(null);
+  const imprimindoRef = useRef(false);
   const [mobileTab, setMobileTab] = useState('cardapio'); // cardapio | carrinho
 
   // Estado de Forma de Pagamento, Telefone e Data
@@ -85,32 +100,94 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
 
   const categorias = ['todas', ...new Set(listaProdutos.map(p => getCatNome(p)))];
 
-  // Adicionar item ao carrinho
-  const adicionarAoCarrinho = (produto) => {
-    setCarrinho(prev => {
-      const existe = prev.find(item => item.id === produto.id);
-      if (existe) {
-        return prev.map(item =>
-          item.id === produto.id
-            ? { ...item, quantidade: item.quantidade + 1 }
-            : item
-        );
+  // Situação de estoque do produto, já descontando as reservas de todos os
+  // caixas. Produto sem controle de estoque é sempre ilimitado.
+  const infoEstoque = (produto) => {
+    if (!produto || !produto.controlaEstoque) {
+      return { controla: false, disponivel: Infinity, esgotado: false, acabando: false };
+    }
+
+    const disponivel = typeof produto.disponivelEstoque === 'number'
+      ? produto.disponivelEstoque
+      : Math.max(0, (produto.estoque || 0) - (produto.reservado || 0));
+
+    return {
+      controla: true,
+      disponivel,
+      esgotado: disponivel <= 0,
+      acabando: disponivel > 0 && disponivel <= (produto.estoqueMinimo || 0)
+    };
+  };
+
+  // Reserva no servidor e só então mexe no carrinho. Em rede local a latência
+  // é irrelevante e isso evita o carrinho mentir sobre disponibilidade.
+  const reservar = (produtoId, quantidade, aoConfirmar) => {
+    if (!onReservarItem) {
+      aoConfirmar();
+      return;
+    }
+
+    onReservarItem(produtoId, quantidade, (resposta) => {
+      if (resposta && resposta.ok) {
+        setErroEstoque(null);
+        aoConfirmar();
+      } else {
+        const prod = listaProdutos.find(p => p.id === produtoId);
+        setErroEstoque({
+          titulo: `Sem estoque suficiente de "${prod?.nome || 'produto'}"`,
+          itens: [{
+            nome: prod?.nome || produtoId,
+            disponivel: resposta?.disponivel ?? 0
+          }]
+        });
       }
-      return [...prev, { ...produto, quantidade: 1, observacao: '' }];
     });
   };
 
-  // Alterar quantidade
-  const alterarQuantidade = (produtoId, delta) => {
-    setCarrinho(prev => {
-      return prev.map(item => {
-        if (item.id === produtoId) {
-          const novaQtd = item.quantidade + delta;
-          return novaQtd > 0 ? { ...item, quantidade: novaQtd } : null;
+  const liberar = (produtoId, quantidade) => {
+    if (onLiberarItem) onLiberarItem(produtoId, quantidade);
+  };
+
+  // Adicionar item ao carrinho
+  const adicionarAoCarrinho = (produto) => {
+    const situacao = infoEstoque(produto);
+    if (situacao.esgotado) return;
+
+    reservar(produto.id, 1, () => {
+      setCarrinho(prev => {
+        const existe = prev.find(item => item.id === produto.id);
+        if (existe) {
+          return prev.map(item =>
+            item.id === produto.id
+              ? { ...item, quantidade: item.quantidade + 1 }
+              : item
+          );
         }
-        return item;
-      }).filter(Boolean);
+        return [...prev, { ...produto, quantidade: 1, observacao: '' }];
+      });
     });
+  };
+
+  // Alterar quantidade: o + reserva mais uma unidade, o - devolve
+  const alterarQuantidade = (produtoId, delta) => {
+    const aplicar = () => {
+      setCarrinho(prev => {
+        return prev.map(item => {
+          if (item.id === produtoId) {
+            const novaQtd = item.quantidade + delta;
+            return novaQtd > 0 ? { ...item, quantidade: novaQtd } : null;
+          }
+          return item;
+        }).filter(Boolean);
+      });
+    };
+
+    if (delta > 0) {
+      reservar(produtoId, delta, aplicar);
+    } else {
+      liberar(produtoId, Math.abs(delta));
+      aplicar();
+    }
   };
 
   // Atualizar observação do item
@@ -120,9 +197,62 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
     );
   };
 
-  // Remover item
+  // Remover item (devolve a reserva inteira daquele produto)
   const removerDoCarrinho = (produtoId) => {
-    setCarrinho(prev => prev.filter(item => item.id !== produtoId));
+    const item = carrinho.find(i => i.id === produtoId);
+    if (item) liberar(produtoId, item.quantidade);
+    setCarrinho(prev => prev.filter(i => i.id !== produtoId));
+  };
+
+  // Limpar carrinho devolve tudo que este caixa estava segurando
+  const limparCarrinho = () => {
+    if (onLiberarCarrinho) onLiberarCarrinho();
+    setCarrinho([]);
+    setErroEstoque(null);
+  };
+
+  // Sair da tela do caixa não pode deixar reserva órfã presa até o TTL
+  useEffect(() => {
+    return () => {
+      if (onLiberarCarrinho) onLiberarCarrinho();
+    };
+  }, []);
+
+  /*
+   * Imprime o comprovante do cliente do pedido recém-fechado.
+   *
+   * Sai como primeira via, sem a marca de 2a VIA, e funciona mesmo com a
+   * impressão automática desligada na configuração. O ref é o que trava o
+   * clique duplo: `disabled` só vale depois do re-render do React.
+   */
+  const imprimirComprovante = () => {
+    if (!ultimoPedido || imprimindoRef.current) return;
+
+    imprimindoRef.current = true;
+    setStatusImpressao({ tipo: 'enviando', texto: 'Enviando para a impressora...' });
+
+    fetch(`/api/orders/${ultimoPedido.id}/imprimir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vias: { cliente: true, cozinha: false },
+        operadorNome: operador ? operador.nome : 'Caixa'
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.status === 'success') {
+          setStatusImpressao({ tipo: 'ok', texto: 'Comprovante enviado para a impressora.' });
+        } else {
+          setStatusImpressao({ tipo: 'erro', texto: data?.error || 'Não foi possível imprimir.' });
+        }
+      })
+      .catch(() => {
+        setStatusImpressao({ tipo: 'erro', texto: 'Erro de conexão ao imprimir.' });
+      })
+      .finally(() => {
+        imprimindoRef.current = false;
+      });
   };
 
   // Calcular total do pedido
@@ -184,20 +314,50 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
       dataCobranca: formaPagamento === 'pagar_depois' ? dataCobranca : undefined
     };
 
+    // O carrinho NUNCA é apagado numa falha: o caixa precisa poder corrigir
+    // o item problemático e reenviar sem remontar o pedido do zero.
+    const tratarResposta = (resposta) => {
+      if (resposta && resposta.erro === 'estoque_insuficiente') {
+        setErroEstoque({
+          titulo: 'Estoque insuficiente para fechar o pedido',
+          itens: (resposta.itensIndisponiveis || []).map(i => ({
+            nome: i.nome,
+            pedido: i.pedido,
+            disponivel: i.disponivel
+          }))
+        });
+        setModalPixAberto(false);
+        setMobileTab('carrinho');
+        return;
+      }
+
+      if (resposta && resposta.error) {
+        alert(resposta.error);
+        return;
+      }
+
+      const pedidoCriado = resposta?.order || resposta?.pedido || null;
+      const numOrder = pedidoCriado?.numero || 'OK';
+
+      setSucessoMsg(`Pedido #${numOrder} enviado para a cozinha!`);
+      if (pedidoCriado?.id) {
+        setUltimoPedido(pedidoCriado);
+        setStatusImpressao(null);
+      }
+      setErroEstoque(null);
+      setModalPixAberto(false);
+      setCliente('');
+      setTelefoneCliente('');
+      setCarrinho([]);
+      setFormaPagamento('pix');
+      setMobileTab('cardapio');
+      setTimeout(() => setSucessoMsg(null), 4000);
+    };
+
     const enviarFn = onEnviarPedido || (socket ? ((data, cb) => socket.emit('criar_pedido', data, cb)) : null);
 
     if (enviarFn) {
-      enviarFn(novoPedido, (resposta) => {
-        const numOrder = resposta?.order?.numero || resposta?.pedido?.numero || 'OK';
-        setSucessoMsg(`Pedido #${numOrder} enviado para a cozinha!`);
-        setModalPixAberto(false);
-        setCliente('');
-        setTelefoneCliente('');
-        setCarrinho([]);
-        setFormaPagamento('pix');
-        setMobileTab('cardapio');
-        setTimeout(() => setSucessoMsg(null), 4000);
-      });
+      enviarFn(novoPedido, tratarResposta);
     } else {
       fetch('/api/orders', {
         method: 'POST',
@@ -205,18 +365,7 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
         body: JSON.stringify(novoPedido)
       })
         .then(res => res.json())
-        .then(data => {
-          if (data && data.order) {
-            setSucessoMsg(`Pedido #${data.order.numero} enviado para a cozinha!`);
-            setModalPixAberto(false);
-            setCliente('');
-            setTelefoneCliente('');
-            setCarrinho([]);
-            setFormaPagamento('pix');
-            setMobileTab('cardapio');
-            setTimeout(() => setSucessoMsg(null), 4000);
-          }
-        })
+        .then(tratarResposta)
         .catch(err => {
           console.error('Erro ao enviar pedido:', err);
           alert('Erro ao comunicar com o servidor.');
@@ -376,6 +525,91 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
         .prod-card:hover {
           border-color: var(--primary);
           background: var(--app-surface-2);
+        }
+
+        .prod-card-esgotado {
+          opacity: 0.45;
+          cursor: not-allowed;
+          filter: grayscale(0.7);
+        }
+
+        .prod-card-esgotado:hover {
+          border-color: var(--app-border);
+          background: var(--app-surface-1);
+        }
+
+        .prod-card-esgotado .prod-add-btn {
+          background: var(--app-ink-muted);
+          cursor: not-allowed;
+        }
+
+        .estoque-badge {
+          font-size: 0.68rem;
+          font-weight: 800;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          padding: 0.15rem 0.45rem;
+          border-radius: var(--radius-pill);
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+
+        .estoque-ok {
+          background: rgba(22, 163, 74, 0.14);
+          color: var(--status-pronto);
+          border: 1px solid var(--status-pronto);
+        }
+
+        .estoque-acabando {
+          background: rgba(230, 134, 25, 0.16);
+          color: var(--status-preparo);
+          border: 1px solid var(--status-preparo);
+        }
+
+        .estoque-esgotado {
+          background: rgba(250, 15, 0, 0.16);
+          color: var(--primary);
+          border: 1px solid var(--primary);
+        }
+
+        .painel-comprovante {
+          background: var(--app-surface-1);
+          border: 1px solid var(--app-border);
+          border-left: 4px solid var(--primary);
+          border-radius: var(--radius-md);
+          padding: 0.8rem 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+        }
+
+        .aviso-estoque {
+          background: rgba(250, 15, 0, 0.12);
+          border: 1px solid var(--primary);
+          border-radius: var(--radius-md);
+          padding: 0.85rem 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.4rem;
+        }
+
+        .aviso-estoque-titulo {
+          display: flex;
+          align-items: center;
+          gap: 0.45rem;
+          font-weight: 800;
+          color: var(--primary);
+          font-size: 0.92rem;
+        }
+
+        .aviso-estoque-lista {
+          margin: 0;
+          padding-left: 1.4rem;
+          font-size: 0.85rem;
+          color: var(--app-ink);
+          display: flex;
+          flex-direction: column;
+          gap: 0.15rem;
         }
 
         .prod-title {
@@ -690,6 +924,55 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
           </div>
         )}
 
+        {/* Comprovante do último pedido fechado */}
+        {ultimoPedido && (
+          <div className="painel-comprovante">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '180px' }}>
+                <div style={{ fontWeight: 800, color: 'var(--text-title)', fontSize: '0.95rem' }}>
+                  Comanda #{ultimoPedido.numero} — {ultimoPedido.cliente}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--app-ink-muted)', marginTop: '2px' }}>
+                  Total R$ {(Number(ultimoPedido.total) || 0).toFixed(2)}
+                </div>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                style={{ padding: '0.55rem 0.9rem', fontSize: '0.9rem' }}
+                onClick={imprimirComprovante}
+                disabled={statusImpressao?.tipo === 'enviando'}
+              >
+                <Printer size={17} />
+                {statusImpressao?.tipo === 'enviando' ? 'Enviando...' : 'Imprimir comprovante'}
+              </button>
+
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.5rem', minHeight: '38px' }}
+                onClick={() => { setUltimoPedido(null); setStatusImpressao(null); }}
+                title="Fechar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {statusImpressao && statusImpressao.tipo !== 'enviando' && (
+              <div style={{
+                fontSize: '0.83rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                color: statusImpressao.tipo === 'ok' ? 'var(--status-pronto)' : 'var(--primary)'
+              }}>
+                {statusImpressao.tipo === 'ok' ? <Check size={15} /> : <AlertCircle size={15} />}
+                <span>{statusImpressao.texto}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Pílulas de Filtro por Categoria */}
         <div className="cat-pills">
           {categorias.map(cat => (
@@ -703,25 +986,48 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
           ))}
         </div>
 
-        {/* Grade de Produtos com Categoria e Descrição Detalhada */}
+        {/* Grade de Produtos com Categoria, Descrição e Saldo de Estoque */}
         <div className="produtos-grid">
-          {produtosFiltrados.map(prod => (
-            <div key={prod.id} className="prod-card" onClick={() => adicionarAoCarrinho(prod)}>
-              <div>
-                <span className="prod-cat">{getCatNome(prod)}</span>
-                <div className="prod-title">{prod.nome}</div>
-                {prod.descricao && (
-                  <div className="prod-desc">{prod.descricao}</div>
-                )}
+          {produtosFiltrados.map(prod => {
+            const situacao = infoEstoque(prod);
+
+            return (
+              <div
+                key={prod.id}
+                className={`prod-card ${situacao.esgotado ? 'prod-card-esgotado' : ''}`}
+                onClick={() => adicionarAoCarrinho(prod)}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.4rem' }}>
+                    <span className="prod-cat">{getCatNome(prod)}</span>
+                    {situacao.controla && (
+                      situacao.esgotado ? (
+                        <span className="estoque-badge estoque-esgotado">ESGOTADO</span>
+                      ) : situacao.acabando ? (
+                        <span className="estoque-badge estoque-acabando">Últimas {situacao.disponivel}</span>
+                      ) : (
+                        <span className="estoque-badge estoque-ok">Restam {situacao.disponivel}</span>
+                      )
+                    )}
+                  </div>
+                  <div className="prod-title">{prod.nome}</div>
+                  {prod.descricao && (
+                    <div className="prod-desc">{prod.descricao}</div>
+                  )}
+                </div>
+                <div className="prod-footer">
+                  <span className="prod-preco">R$ {(prod.preco || 0).toFixed(2)}</span>
+                  <button
+                    className="prod-add-btn"
+                    title={situacao.esgotado ? 'Produto esgotado' : 'Adicionar ao Pedido'}
+                    disabled={situacao.esgotado}
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
               </div>
-              <div className="prod-footer">
-                <span className="prod-preco">R$ {(prod.preco || 0).toFixed(2)}</span>
-                <button className="prod-add-btn" title="Adicionar ao Pedido">
-                  <Plus size={18} />
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -736,7 +1042,7 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
             <button
               className="btn btn-secondary"
               style={{ padding: '0.3rem 0.6rem', fontSize: '0.8rem', minHeight: '32px' }}
-              onClick={() => setCarrinho([])}
+              onClick={limparCarrinho}
             >
               Limpar
             </button>
@@ -758,6 +1064,37 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
           </div>
         </div>
 
+        {/* Aviso de estoque insuficiente — o carrinho fica intacto */}
+        {erroEstoque && (
+          <div className="aviso-estoque">
+            <div className="aviso-estoque-titulo">
+              <AlertCircle size={17} />
+              <span>{erroEstoque.titulo}</span>
+            </div>
+            <ul className="aviso-estoque-lista">
+              {erroEstoque.itens.map((item, idx) => (
+                <li key={idx}>
+                  <strong>{item.nome}</strong>
+                  {item.pedido !== undefined ? ` — pedido ${item.pedido}, ` : ' — '}
+                  {item.disponivel > 0
+                    ? `restam apenas ${item.disponivel}`
+                    : 'sem estoque disponível'}
+                </li>
+              ))}
+            </ul>
+            <div style={{ fontSize: '0.78rem', color: 'var(--app-ink-muted)' }}>
+              Ajuste as quantidades acima e envie novamente. Nada do pedido foi perdido.
+            </div>
+            <button
+              className="btn btn-secondary"
+              style={{ alignSelf: 'flex-start', padding: '0.25rem 0.6rem', fontSize: '0.78rem', minHeight: '30px' }}
+              onClick={() => setErroEstoque(null)}
+            >
+              Entendi
+            </button>
+          </div>
+        )}
+
         {/* Itens do Carrinho */}
         <div className="carrinho-itens">
           {carrinho.length === 0 ? (
@@ -767,19 +1104,37 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
               <span style={{ fontSize: '0.82rem' }}>Clique nos produtos do cardápio para montar o pedido.</span>
             </div>
           ) : (
-            carrinho.map(item => (
+            carrinho.map(item => {
+              // O produto do menu é a fonte da verdade do saldo, não a cópia
+              // que foi para o carrinho no momento do clique.
+              const produtoAtual = listaProdutos.find(p => p.id === item.id) || item;
+              const situacao = infoEstoque(produtoAtual);
+              const noLimite = situacao.controla && situacao.disponivel <= 0;
+
+              return (
               <div key={item.id} className="carrinho-item">
                 <div className="item-main">
                   <div>
                     <div className="item-nome">{item.nome}</div>
                     <div className="item-preco">R$ {(item.preco * item.quantidade).toFixed(2)}</div>
+                    {situacao.controla && (
+                      <div style={{ fontSize: '0.72rem', color: noLimite ? 'var(--primary)' : 'var(--app-ink-muted)', marginTop: '2px' }}>
+                        {noLimite ? 'Último disponível no estoque' : `Restam ${situacao.disponivel} em estoque`}
+                      </div>
+                    )}
                   </div>
                   <div className="item-qtd-ctrl">
                     <button className="qtd-btn" onClick={() => alterarQuantidade(item.id, -1)}>
                       <Minus size={14} />
                     </button>
                     <span className="qtd-val">{item.quantidade}</span>
-                    <button className="qtd-btn" onClick={() => alterarQuantidade(item.id, 1)}>
+                    <button
+                      className="qtd-btn"
+                      onClick={() => alterarQuantidade(item.id, 1)}
+                      disabled={noLimite}
+                      title={noLimite ? 'Sem estoque disponível' : 'Adicionar mais uma unidade'}
+                      style={noLimite ? { opacity: 0.35, cursor: 'not-allowed' } : undefined}
+                    >
                       <Plus size={14} />
                     </button>
                     <button className="qtd-btn" style={{ color: 'var(--primary)', marginLeft: '4px' }} onClick={() => removerDoCarrinho(item.id)}>
@@ -799,7 +1154,8 @@ export default function CaixaView({ socket, menu, operador, onEnviarPedido }) {
                   />
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
 

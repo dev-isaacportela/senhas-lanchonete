@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
-import { ShoppingBag, ChefHat, Tv, Utensils, Wifi, WifiOff, Sun, Moon, User, LogOut, ShieldCheck, Lock, ArrowRight, BarChart3, Users, History, AlertTriangle } from 'lucide-react';
+import { ShoppingBag, ChefHat, Tv, Utensils, Wifi, WifiOff, Sun, Moon, User, LogOut, ShieldCheck, Lock, ArrowRight, BarChart3, Users, History, AlertTriangle, Printer, X } from 'lucide-react';
 
 import CaixaView from './components/CaixaView';
 import CozinhaView from './components/CozinhaView';
@@ -9,6 +9,7 @@ import CardapioView from './components/CardapioView';
 import VendasView from './components/VendasView';
 import UsuariosView from './components/UsuariosView';
 import LogsView from './components/LogsView';
+import ImpressoraView from './components/ImpressoraView';
 
 // Initialize Socket.io connection
 const socket = io(window.location.origin, {
@@ -52,6 +53,9 @@ export default function App() {
   const [menu, setMenu] = useState({ categorias: [], produtos: [] });
   const [logs, setLogs] = useState([]);
   const [ultimoPedidoChamado, setUltimoPedidoChamado] = useState(null);
+  // Falha de impressão fica na tela até ser fechada: comprovante que não
+  // saiu significa cliente sem comanda, e isso não pode passar batido.
+  const [falhaImpressao, setFalhaImpressao] = useState(null);
 
   const formatarMenu = (dados) => {
     if (!dados) return { categorias: [], produtos: [] };
@@ -163,8 +167,39 @@ export default function App() {
       setMenu(formatarMenu(novoMenu));
     });
 
+    // Estoque em tempo real: mescla no menu que já está em memória, sem
+    // recarregar o cardápio inteiro a cada reserva de outro caixa.
+    socket.on('estoque_atualizado', (lista) => {
+      if (!Array.isArray(lista) || lista.length === 0) return;
+
+      setMenu(prev => ({
+        ...prev,
+        produtos: prev.produtos.map(p => {
+          const info = lista.find(e => e.produtoId === p.id);
+          if (!info) return p;
+          return {
+            ...p,
+            controlaEstoque: info.controlaEstoque,
+            estoque: info.estoque,
+            estoqueMinimo: info.estoqueMinimo,
+            reservado: info.reservado,
+            disponivelEstoque: info.disponivel
+          };
+        })
+      }));
+    });
+
     socket.on('novo_log_auditoria', (novoLog) => {
       setLogs(prev => [novoLog, ...prev.filter(l => l.id !== novoLog.id)]);
+    });
+
+    socket.on('impressao_falhou', (info) => {
+      setFalhaImpressao(info);
+    });
+
+    socket.on('impressao_status', (info) => {
+      // Impressão que voltou a funcionar limpa o aviso do mesmo pedido
+      setFalhaImpressao(prev => (prev && prev.pedidoId === info.pedidoId ? null : prev));
     });
 
     return () => {
@@ -176,7 +211,10 @@ export default function App() {
       socket.off('status_pedido_atualizado');
       socket.off('pedido_chamado');
       socket.off('cardapio_atualizado');
+      socket.off('estoque_atualizado');
       socket.off('novo_log_auditoria');
+      socket.off('impressao_falhou');
+      socket.off('impressao_status');
     };
   }, []);
 
@@ -249,6 +287,36 @@ export default function App() {
         }
       })
       .catch(err => console.error('Erro ao alternar item:', err));
+  };
+
+  // Reserva de estoque no carrinho. O callback do socket é a confirmação:
+  // o CaixaView só mexe no carrinho depois que o servidor aceitou.
+  const handleReservarItem = (produtoId, quantidade, callback) => {
+    socket.emit('reservar_item', { produtoId, quantidade: quantidade || 1 }, callback);
+  };
+
+  const handleLiberarItem = (produtoId, quantidade, callback) => {
+    socket.emit('liberar_item', { produtoId, quantidade: quantidade || 1 }, callback);
+  };
+
+  const handleLiberarCarrinho = (callback) => {
+    socket.emit('liberar_carrinho', {}, callback);
+  };
+
+  const handleAjustarEstoque = (produtoId, ajuste) => {
+    return fetch(`/api/menu/produto/${produtoId}/estoque`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...ajuste,
+        operadorNome: operador ? operador.nome : 'Gerente'
+      })
+    })
+      .then(res => res.json())
+      .catch(err => {
+        console.error('Erro ao ajustar estoque:', err);
+        return { error: 'Erro de conexão ao ajustar o estoque.' };
+      });
   };
 
   const handleSalvarProduto = (produtoData) => {
@@ -423,6 +491,7 @@ export default function App() {
   const podeLancarPedidos = operador.role === 'master' || operador.role === 'caixa';
   const podeGerenciarCardapio = operador.role === 'master';
   const podeGerenciarUsuarios = operador.role === 'master';
+  const podeGerenciarImpressora = operador.role === 'master';
   const podeVerVendas = operador.role === 'master' || operador.role === 'caixa';
   const podeVerLogs = operador.role === 'master' || operador.role === 'caixa';
 
@@ -491,6 +560,15 @@ export default function App() {
             </button>
           )}
 
+          {podeGerenciarImpressora && (
+            <button
+              className={`nav-btn ${visaoAtiva === 'impressora' ? 'active' : ''}`}
+              onClick={() => setVisaoAtiva('impressora')}
+            >
+              <Printer size={18} /> Impressora
+            </button>
+          )}
+
           {podeGerenciarUsuarios && (
             <button
               className={`nav-btn ${visaoAtiva === 'usuarios' ? 'active' : ''}`}
@@ -545,11 +623,50 @@ export default function App() {
         </div>
       </header>
 
+      {/* Aviso persistente de falha na impressão */}
+      {falhaImpressao && (
+        <div style={{
+          background: 'rgba(250, 15, 0, 0.13)',
+          border: '1px solid var(--primary)',
+          borderRadius: 'var(--radius-md)',
+          padding: '0.85rem 1rem',
+          margin: '0 0 1rem 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.7rem'
+        }}>
+          <Printer size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, color: 'var(--primary)', fontSize: '0.92rem' }}>
+              O comprovante {falhaImpressao.numero ? `da comanda #${falhaImpressao.numero}` : ''} não foi impresso
+            </div>
+            <div style={{ fontSize: '0.84rem', color: 'var(--app-ink)', marginTop: '2px' }}>
+              {falhaImpressao.erro} O pedido foi registrado normalmente — se precisar, use <strong>Reimprimir</strong> em Vendas.
+            </div>
+          </div>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: '0.3rem 0.5rem', minHeight: '32px', flexShrink: 0 }}
+            onClick={() => setFalhaImpressao(null)}
+            title="Fechar aviso"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       {/* Conteúdo Principal */}
       <main className="main-content">
         {visaoAtiva === 'caixa' && (
           podeLancarPedidos ? (
-            <CaixaView menu={menu} operador={operador} onEnviarPedido={handleEnviarPedido} />
+            <CaixaView
+              menu={menu}
+              operador={operador}
+              onEnviarPedido={handleEnviarPedido}
+              onReservarItem={handleReservarItem}
+              onLiberarItem={handleLiberarItem}
+              onLiberarCarrinho={handleLiberarCarrinho}
+            />
           ) : (
             <div style={{ background: 'var(--app-surface-1)', border: '1px solid var(--app-border)', borderRadius: 'var(--radius-lg)', padding: '3rem', textAlign: 'center', color: 'var(--app-ink-muted)' }}>
               <Lock size={48} color="var(--primary)" style={{ marginBottom: '1rem' }} />
@@ -594,6 +711,7 @@ export default function App() {
               onToggleDisponivel={handleToggleDisponivel}
               onSalvarCategoria={handleSalvarCategoria}
               onExcluirCategoria={handleExcluirCategoria}
+              onAjustarEstoque={handleAjustarEstoque}
             />
           ) : (
             <div style={{ background: 'var(--app-surface-1)', border: '1px solid var(--app-border)', borderRadius: 'var(--radius-lg)', padding: '3rem', textAlign: 'center', color: 'var(--app-ink-muted)' }}>
@@ -602,6 +720,10 @@ export default function App() {
               <p style={{ marginTop: '0.5rem' }}>Apenas a Conta Master pode cadastrar ou alterar produtos do cardápio.</p>
             </div>
           )
+        )}
+
+        {visaoAtiva === 'impressora' && (
+          <ImpressoraView operador={operador} />
         )}
 
         {visaoAtiva === 'usuarios' && (
@@ -665,6 +787,16 @@ export default function App() {
             >
               <Utensils size={20} />
               <span>Cardápio</span>
+            </button>
+          )}
+
+          {podeGerenciarImpressora && (
+            <button
+              className={`mobile-nav-item ${visaoAtiva === 'impressora' ? 'active' : ''}`}
+              onClick={() => setVisaoAtiva('impressora')}
+            >
+              <Printer size={20} />
+              <span>Impressora</span>
             </button>
           )}
 

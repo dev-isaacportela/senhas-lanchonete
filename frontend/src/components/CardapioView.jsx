@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Utensils, Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, Check, FolderPlus, Tag, AlertCircle, Beef, Sparkles, CupSoda, Cookie, Pizza, Coffee } from 'lucide-react';
+import { Utensils, Plus, Edit2, Trash2, ToggleLeft, ToggleRight, Search, Check, FolderPlus, Tag, AlertCircle, Beef, Sparkles, CupSoda, Cookie, Pizza, Coffee, Minus, PackagePlus, Infinity as InfinityIcon } from 'lucide-react';
 
 const ICONES_DISPONIVEIS = [
   { id: 'burger', nome: 'Hambúrguer', component: <Beef size={18} /> },
@@ -22,10 +22,12 @@ export default function CardapioView({
   onExcluirProduto,
   onToggleDisponivel,
   onSalvarCategoria,
-  onExcluirCategoria
+  onExcluirCategoria,
+  onAjustarEstoque
 }) {
   const [categoriaFiltro, setCategoriaFiltro] = useState('todas');
   const [busca, setBusca] = useState('');
+  const [somenteAcabando, setSomenteAcabando] = useState(false);
 
   // Modais State
   const [modalProdutoAberto, setModalProdutoAberto] = useState(false);
@@ -36,6 +38,9 @@ export default function CardapioView({
   const [prodCategoriaId, setProdCategoriaId] = useState('');
   const [prodPreco, setProdPreco] = useState('');
   const [prodDescricao, setProdDescricao] = useState('');
+  const [prodControlaEstoque, setProdControlaEstoque] = useState(false);
+  const [prodEstoque, setProdEstoque] = useState('0');
+  const [prodEstoqueMinimo, setProdEstoqueMinimo] = useState('0');
 
   const [catNome, setCatNome] = useState('');
   const [catIcone, setCatIcone] = useState('burger');
@@ -48,14 +53,46 @@ export default function CardapioView({
     ? menu.produtos
     : (Array.isArray(menu) ? menu : []);
 
+  // Um item está "acabando" quando o controle está ligado e o saldo caiu até
+  // o alerta mínimo — inclusive quando já zerou.
+  const estaAcabando = (p) =>
+    !!p.controlaEstoque && (p.estoque || 0) <= (p.estoqueMinimo || 0);
+
+  const qtdAcabando = produtos.filter(estaAcabando).length;
+
   // Filtering products
   const produtosFiltrados = produtos.filter(p => {
     const bateCategoria = categoriaFiltro === 'todas' || p.categoriaId === categoriaFiltro;
-    const bateBusca = !busca.trim() || 
-      p.nome.toLowerCase().includes(busca.toLowerCase()) || 
+    const bateBusca = !busca.trim() ||
+      p.nome.toLowerCase().includes(busca.toLowerCase()) ||
       (p.descricao && p.descricao.toLowerCase().includes(busca.toLowerCase()));
-    return bateCategoria && bateBusca;
+    const bateEstoque = !somenteAcabando || estaAcabando(p);
+    return bateCategoria && bateBusca && bateEstoque;
   });
+
+  // Ajuste rápido de saldo direto da tabela
+  const ajustarEstoque = (prod, ajuste) => {
+    if (!onAjustarEstoque) return;
+    onAjustarEstoque(prod.id, ajuste).then(res => {
+      if (res && res.error) alert(res.error);
+    });
+  };
+
+  const reporEstoque = (prod) => {
+    const resposta = window.prompt(
+      `Repor estoque de "${prod.nome}".\nSaldo atual: ${prod.estoque || 0}\n\nQuantas unidades deseja ADICIONAR?`,
+      '10'
+    );
+    if (resposta === null) return;
+
+    const quantidade = parseInt(resposta, 10);
+    if (Number.isNaN(quantidade) || quantidade === 0) {
+      alert('Informe um número inteiro diferente de zero.');
+      return;
+    }
+
+    ajustarEstoque(prod, { delta: quantidade });
+  };
 
   // Open Product Modal (Create/Edit)
   const abrirModalProduto = (prod = null) => {
@@ -65,12 +102,18 @@ export default function CardapioView({
       setProdCategoriaId(prod.categoriaId);
       setProdPreco(prod.preco.toString());
       setProdDescricao(prod.descricao || '');
+      setProdControlaEstoque(!!prod.controlaEstoque);
+      setProdEstoque(String(prod.estoque ?? 0));
+      setProdEstoqueMinimo(String(prod.estoqueMinimo ?? 0));
     } else {
       setProdutoEditando(null);
       setProdNome('');
       setProdCategoriaId(categorias[0]?.id || 'lanches');
       setProdPreco('');
       setProdDescricao('');
+      setProdControlaEstoque(false);
+      setProdEstoque('0');
+      setProdEstoqueMinimo('0');
     }
     setModalProdutoAberto(true);
   };
@@ -96,7 +139,10 @@ export default function CardapioView({
       nome: prodNome.trim(),
       preco: parseFloat(prodPreco),
       descricao: prodDescricao.trim(),
-      disponivel: produtoEditando ? produtoEditando.disponivel : true
+      disponivel: produtoEditando ? produtoEditando.disponivel : true,
+      controlaEstoque: prodControlaEstoque,
+      estoque: prodControlaEstoque ? (parseInt(prodEstoque, 10) || 0) : 0,
+      estoqueMinimo: prodControlaEstoque ? (parseInt(prodEstoqueMinimo, 10) || 0) : 0
     });
 
     setModalProdutoAberto(false);
@@ -339,6 +385,93 @@ export default function CardapioView({
           background: var(--primary);
           color: var(--on-primary);
         }
+
+        /* Controle de estoque no modal de produto */
+        .estoque-box {
+          border: 1px dashed var(--app-border);
+          border-radius: var(--radius-md);
+          padding: 0.85rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.85rem;
+          background: var(--app-canvas);
+        }
+
+        .estoque-switch {
+          display: flex;
+          align-items: center;
+          gap: 0.65rem;
+          background: none;
+          border: none;
+          padding: 0;
+          cursor: pointer;
+          text-align: left;
+          color: var(--app-ink);
+        }
+
+        .estoque-switch strong {
+          display: block;
+          font-size: 0.92rem;
+          color: var(--text-title);
+        }
+
+        .estoque-switch small {
+          display: block;
+          font-size: 0.78rem;
+          color: var(--app-ink-muted);
+          margin-top: 2px;
+        }
+
+        .estoque-campos {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 0.75rem;
+        }
+
+        /* Coluna de estoque na tabela */
+        .estoque-celula {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .estoque-saldo {
+          font-family: var(--font-display);
+          font-weight: 800;
+          font-size: 1.05rem;
+          min-width: 2ch;
+          text-align: center;
+        }
+
+        .estoque-saldo.ok { color: var(--status-pronto); }
+        .estoque-saldo.acabando { color: var(--status-preparo); }
+        .estoque-saldo.zerado { color: var(--primary); }
+
+        .estoque-mini-btn {
+          background: var(--app-canvas);
+          border: 1px solid var(--app-border);
+          color: var(--app-ink);
+          border-radius: var(--radius-sm);
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+        }
+
+        .estoque-mini-btn:hover {
+          border-color: var(--primary);
+          color: var(--primary);
+        }
+
+        .estoque-ilimitado {
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+          font-size: 0.8rem;
+          color: var(--app-ink-muted);
+        }
       `}</style>
 
       {/* Barra de Ações Superior */}
@@ -401,6 +534,16 @@ export default function CardapioView({
             </div>
           );
         })}
+
+        {/* Filtro de reposição: o que precisa de atenção antes do evento */}
+        <button
+          className={`cat-pill-btn ${somenteAcabando ? 'active' : ''}`}
+          onClick={() => setSomenteAcabando(v => !v)}
+          title="Mostrar apenas produtos no limite do alerta mínimo"
+          style={{ marginLeft: 'auto' }}
+        >
+          <AlertCircle size={14} /> Somente itens acabando ({qtdAcabando})
+        </button>
       </div>
 
       {/* Tabela de Produtos (CRUD) */}
@@ -412,6 +555,7 @@ export default function CardapioView({
               <th>Produto</th>
               <th>Categoria</th>
               <th>Preço</th>
+              <th>Estoque</th>
               <th>Descrição</th>
               <th style={{ textAlign: 'right' }}>Ações</th>
             </tr>
@@ -419,7 +563,7 @@ export default function CardapioView({
           <tbody>
             {produtosFiltrados.length === 0 ? (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--app-ink-muted)' }}>
+                <td colSpan="7" style={{ textAlign: 'center', padding: '3rem 1rem', color: 'var(--app-ink-muted)' }}>
                   <AlertCircle size={32} style={{ marginBottom: '0.5rem', display: 'block', margin: '0 auto' }} />
                   Nenhum produto encontrado. Clique em <strong>"+ Produto"</strong> para adicionar.
                 </td>
@@ -458,6 +602,48 @@ export default function CardapioView({
                       <strong style={{ color: 'var(--status-pronto)', fontSize: '1.05rem' }}>
                         R$ {prod.preco.toFixed(2)}
                       </strong>
+                    </td>
+                    <td>
+                      {prod.controlaEstoque ? (
+                        <div className="estoque-celula">
+                          <button
+                            className="estoque-mini-btn"
+                            title="Abater 1 unidade"
+                            onClick={() => ajustarEstoque(prod, { delta: -1 })}
+                          >
+                            <Minus size={14} />
+                          </button>
+
+                          <span className={`estoque-saldo ${
+                            (prod.estoque || 0) === 0
+                              ? 'zerado'
+                              : estaAcabando(prod) ? 'acabando' : 'ok'
+                          }`}>
+                            {prod.estoque || 0}
+                          </span>
+
+                          <button
+                            className="estoque-mini-btn"
+                            title="Adicionar 1 unidade"
+                            onClick={() => ajustarEstoque(prod, { delta: 1 })}
+                          >
+                            <Plus size={14} />
+                          </button>
+
+                          <button
+                            className="estoque-mini-btn"
+                            title="Repor uma quantidade maior"
+                            onClick={() => reporEstoque(prod)}
+                            style={{ width: 'auto', padding: '0 0.5rem', gap: '0.25rem' }}
+                          >
+                            <PackagePlus size={14} /> <span style={{ fontSize: '0.75rem', fontWeight: 700 }}>Repor</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="estoque-ilimitado">
+                          <InfinityIcon size={15} /> Ilimitado
+                        </span>
+                      )}
                     </td>
                     <td style={{ fontSize: '0.85rem', color: 'var(--app-ink-muted)', maxWidth: '280px' }}>
                       {prod.descricao || '-'}
@@ -546,6 +732,54 @@ export default function CardapioView({
                   value={prodDescricao}
                   onChange={(e) => setProdDescricao(e.target.value)}
                 />
+              </div>
+
+              {/* Controle de Estoque do Produto */}
+              <div className="estoque-box">
+                <button
+                  type="button"
+                  className="estoque-switch"
+                  onClick={() => setProdControlaEstoque(v => !v)}
+                >
+                  {prodControlaEstoque
+                    ? <ToggleRight size={22} color="var(--status-pronto)" />
+                    : <ToggleLeft size={22} color="var(--app-ink-muted)" />}
+                  <span>
+                    <strong>Controlar estoque deste produto</strong>
+                    <small>
+                      {prodControlaEstoque
+                        ? 'O caixa não consegue vender depois que as unidades acabam.'
+                        : 'Desligado: venda ilimitada, sem contagem de unidades.'}
+                    </small>
+                  </span>
+                </button>
+
+                {prodControlaEstoque && (
+                  <div className="estoque-campos">
+                    <div className="form-group">
+                      <label className="form-label">Quantidade em estoque</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="form-input"
+                        value={prodEstoque}
+                        onChange={(e) => setProdEstoque(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Alerta mínimo</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        className="form-input"
+                        value={prodEstoqueMinimo}
+                        onChange={(e) => setProdEstoqueMinimo(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '0.5rem' }}>

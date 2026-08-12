@@ -1,0 +1,16 @@
+{
+  "habilitado": false,
+  "nomeImpressora": "",
+  "larguraColunas": 32,
+  "codePage": "cp850",
+  "semAcentos": false,
+  "cortarPapel": true,
+  "vias": {
+    "cliente": true,
+    "cozinha": false
+  },
+  "copiasCliente": 1,
+  "cabecalho": "FESTA DO MORANGO",
+  "subCabecalho": "Desbravadores Apocalipse",
+  "rodape": "Aguarde ser chamado no balcao"
+}

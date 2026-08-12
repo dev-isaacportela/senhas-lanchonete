@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
-import { DollarSign, BarChart3, ShoppingBag, TrendingUp, CheckCircle, Clock, ShieldAlert, Calendar, Check, CreditCard, Phone, ChevronDown, ChevronUp, User, Search, Filter, RefreshCw, FileText, Tag, ArrowRight, Layers } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { DollarSign, BarChart3, ShoppingBag, TrendingUp, CheckCircle, Clock, ShieldAlert, Calendar, Check, CreditCard, Phone, ChevronDown, ChevronUp, User, Search, Filter, RefreshCw, FileText, Tag, ArrowRight, Layers, Printer } from 'lucide-react';
 
 export default function VendasView({ pedidos, operador }) {
   const [expandidoId, setExpandidoId] = useState(null);
+  // Trava por pedido: clique duplo não pode enfileirar duas impressões.
+  // O ref é o que realmente trava — `disabled` só vale depois do re-render,
+  // e três cliques rápidos acontecem todos antes disso.
+  const [reimprimindoId, setReimprimindoId] = useState(null);
+  const reimpressaoEmCurso = useRef(false);
   
   // Filtros de Período e Busca
   const [filtroPeriodo, setFiltroPeriodo] = useState('hoje'); // hoje | ontem | 7dias | todos | custom
@@ -42,6 +47,52 @@ export default function VendasView({ pedidos, operador }) {
         .catch(err => console.error('Erro ao quitar pagamento:', err));
     }
   };
+
+  const handleReimprimir = (e, pedido) => {
+    e.stopPropagation();
+    if (reimpressaoEmCurso.current) return;
+
+    reimpressaoEmCurso.current = true;
+    setReimprimindoId(pedido.id);
+
+    fetch(`/api/orders/${pedido.id}/reimprimir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operadorNome: operador ? operador.nome : 'Operador' })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.error) alert(data.error);
+      })
+      .catch(err => {
+        console.error('Erro ao reimprimir:', err);
+        alert('Erro de conexão ao solicitar a reimpressão.');
+      })
+      .finally(() => {
+        reimpressaoEmCurso.current = false;
+        setReimprimindoId(null);
+      });
+  };
+
+  // Função, não componente: evita remontar o botão a cada render da lista
+  const botaoReimprimir = (pedido, largura = false) => (
+    <button
+      key={`reimprimir-${pedido.id}`}
+      className="btn btn-secondary"
+      style={{
+        padding: '0.35rem 0.75rem',
+        fontSize: '0.82rem',
+        minHeight: '36px',
+        width: largura ? '100%' : undefined
+      }}
+      onClick={(e) => handleReimprimir(e, pedido)}
+      disabled={reimprimindoId === pedido.id}
+      title={`Reimprimir a comanda #${pedido.numero} (sai marcada como 2a via)`}
+    >
+      <Printer size={14} />
+      {reimprimindoId === pedido.id ? 'Enviando...' : 'Reimprimir'}
+    </button>
+  );
 
   // Helper robusto para determinar se o pedido está pendente de cobrança/pagamento
   const isPendente = (p) => {
@@ -542,7 +593,7 @@ export default function VendasView({ pedidos, operador }) {
                         {p.preparadoPor && <div style={{ color: 'var(--app-ink-muted)' }}>Cozinha: {p.preparadoPor}</div>}
                       </td>
                       <td>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           {isPendente(p) ? (
                             <button
                               className="btn btn-warning"
@@ -556,6 +607,7 @@ export default function VendasView({ pedidos, operador }) {
                               <CheckCircle size={15} /> Quitado
                             </span>
                           )}
+                          {botaoReimprimir(p)}
                         </div>
                       </td>
                     </tr>
@@ -673,7 +725,7 @@ export default function VendasView({ pedidos, operador }) {
                       {p.preparadoPor && <span>Cozinha: <strong>{p.preparadoPor}</strong></span>}
                     </div>
 
-                    <div style={{ marginTop: '0.3rem', display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                       {isPendente(p) ? (
                         <button
                           className="btn btn-warning"
@@ -683,10 +735,11 @@ export default function VendasView({ pedidos, operador }) {
                           <Check size={14} /> Quitar / Marcar Pago
                         </button>
                       ) : (
-                        <span style={{ fontSize: '0.82rem', color: 'var(--color-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                        <span style={{ fontSize: '0.82rem', color: 'var(--color-primary)', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.3rem' }}>
                           <CheckCircle size={15} /> Pagamento Confirmado / Quitado
                         </span>
                       )}
+                      {botaoReimprimir(p, true)}
                     </div>
                   </div>
                 )}

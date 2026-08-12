@@ -5,6 +5,11 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
+const store = require('./store');
+const ordersService = require('./services/orders');
+const estoqueService = require('./services/estoque');
+const printerService = require('./services/printer');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -17,18 +22,10 @@ const io = new Server(server, {
   }
 });
 
-// Caminhos de Persistência em Disco JSON
-const DATA_DIR = path.join(__dirname, 'data');
-const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
-const MENU_FILE = path.join(DATA_DIR, 'menu.json');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-const LOGS_FILE = path.join(DATA_DIR, 'logs.json');
-const pixConfigPath = path.join(DATA_DIR, 'pix-config.json');
+// O store precisa do io para emitir 'novo_log_auditoria' de dentro do registrarLog
+store.setIo(io);
 
-// Garantir que a pasta de dados existe
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+const pixConfigPath = store.PIX_CONFIG_FILE;
 
 // Configuração Padrão de Chave PIX
 if (!fs.existsSync(pixConfigPath)) {
@@ -38,63 +35,7 @@ if (!fs.existsSync(pixConfigPath)) {
     nomeBeneficiario: 'Festa do Morango',
     cidadeBeneficiario: 'SAO PAULO'
   };
-  fs.writeFileSync(pixConfigPath, JSON.stringify(pixPadrao, null, 2), 'utf-8');
-}
-
-// Helpers for Reading & Writing JSON Files safely
-function readJSON(filePath, fallback = []) {
-  try {
-    if (!fs.existsSync(filePath)) return fallback;
-    const content = fs.readFileSync(filePath, 'utf8');
-    return JSON.parse(content);
-  } catch (err) {
-    console.error(`Erro ao ler arquivo ${filePath}:`, err);
-    return fallback;
-  }
-}
-
-function writeJSON(filePath, data) {
-  try {
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (err) {
-    console.error(`Erro ao salvar arquivo ${filePath}:`, err);
-  }
-}
-
-// Memory Cache synced with JSON files
-let orders = readJSON(ORDERS_FILE, []);
-let menu = readJSON(MENU_FILE, { categorias: [], produtos: [] });
-let users = readJSON(USERS_FILE, []);
-let auditLogs = readJSON(LOGS_FILE, []);
-
-// Helper to log actions with detailed items
-function registrarLog(pedidoId, numeroPedido, cliente, usuario, acao, descricao, itens = null) {
-  const newLog = {
-    id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-    timestamp: new Date().toISOString(),
-    pedidoId,
-    numeroPedido,
-    cliente,
-    usuario: usuario || 'Sistema',
-    acao,
-    descricao,
-    itens: itens || null
-  };
-
-  auditLogs.unshift(newLog);
-  if (auditLogs.length > 500) auditLogs = auditLogs.slice(0, 500);
-  writeJSON(LOGS_FILE, auditLogs);
-
-  if (typeof io !== 'undefined') {
-    io.emit('novo_log_auditoria', newLog);
-  }
-}
-
-// Function to calculate next comanda number
-function getNextOrderNumber() {
-  if (orders.length === 0) return 101;
-  const maxNum = Math.max(...orders.map(o => o.numero || 100));
-  return maxNum + 1;
+  store.writeJSON(pixConfigPath, pixPadrao);
 }
 
 // REST Endpoints
@@ -107,7 +48,7 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(400).json({ error: 'Usuário e senha são obrigatórios.' });
   }
 
-  const user = users.find(u => u.usuario.toLowerCase() === usuario.trim().toLowerCase() && u.senha === senha.trim());
+  const user = store.users.find(u => u.usuario.toLowerCase() === usuario.trim().toLowerCase() && u.senha === senha.trim());
 
   if (!user) {
     return res.status(401).json({ error: 'Usuário ou senha incorretos.' });
@@ -128,7 +69,7 @@ app.post('/api/auth/login', (req, res) => {
 
 // Obter todos os usuários
 app.get('/api/users', (req, res) => {
-  res.json(users);
+  res.json(store.users);
 });
 
 // Criar novo usuário
@@ -140,7 +81,7 @@ app.post('/api/users', (req, res) => {
   }
 
   const usuarioFormatado = usuario.trim().toLowerCase();
-  const jaExiste = users.some(u => u.usuario.toLowerCase() === usuarioFormatado);
+  const jaExiste = store.users.some(u => u.usuario.toLowerCase() === usuarioFormatado);
   if (jaExiste) {
     return res.status(400).json({ error: 'Este nome de usuário já está em uso.' });
   }
@@ -153,8 +94,8 @@ app.post('/api/users', (req, res) => {
     role: role || 'cozinha'
   };
 
-  users.push(newUser);
-  writeJSON(USERS_FILE, users);
+  store.users.push(newUser);
+  store.salvarUsuarios();
 
   res.status(201).json({ status: 'success', user: newUser });
 });
@@ -164,25 +105,25 @@ app.patch('/api/users/:id', (req, res) => {
   const { id } = req.params;
   const { nome, senha, role } = req.body;
 
-  const idx = users.findIndex(u => u.id === id);
+  const idx = store.users.findIndex(u => u.id === id);
   if (idx === -1) {
     return res.status(404).json({ error: 'Usuário não encontrado.' });
   }
 
-  if (nome) users[idx].nome = nome.trim();
-  if (senha) users[idx].senha = senha.trim();
-  if (role) users[idx].role = role;
+  if (nome) store.users[idx].nome = nome.trim();
+  if (senha) store.users[idx].senha = senha.trim();
+  if (role) store.users[idx].role = role;
 
-  writeJSON(USERS_FILE, users);
+  store.salvarUsuarios();
 
-  res.json({ status: 'success', user: users[idx] });
+  res.json({ status: 'success', user: store.users[idx] });
 });
 
 // Excluir usuário
 app.delete('/api/users/:id', (req, res) => {
   const { id } = req.params;
 
-  const target = users.find(u => u.id === id);
+  const target = store.users.find(u => u.id === id);
   if (!target) {
     return res.status(404).json({ error: 'Usuário não encontrado.' });
   }
@@ -191,15 +132,15 @@ app.delete('/api/users/:id', (req, res) => {
     return res.status(403).json({ error: 'Não é possível excluir a conta master principal (admin).' });
   }
 
-  users = users.filter(u => u.id !== id);
-  writeJSON(USERS_FILE, users);
+  store.users = store.users.filter(u => u.id !== id);
+  store.salvarUsuarios();
 
   res.json({ status: 'success', message: 'Usuário excluído com sucesso.' });
 });
 
 // 1. Obter todos os pedidos
 app.get('/api/orders', (req, res) => {
-  res.json(orders);
+  res.json(store.orders);
 });
 
 // ----------------------------------------------------
@@ -207,7 +148,7 @@ app.get('/api/orders', (req, res) => {
 // ----------------------------------------------------
 app.get('/api/pix-config', (req, res) => {
   try {
-    const pixData = readJSON(pixConfigPath, {
+    const pixData = store.readJSON(pixConfigPath, {
       chavePix: 'festadomorango@exemplo.com',
       tipoChave: 'email',
       nomeBeneficiario: 'Festa do Morango',
@@ -233,80 +174,161 @@ app.post('/api/pix-config', (req, res) => {
       cidadeBeneficiario: String(cidadeBeneficiario || 'SAO PAULO').trim().toUpperCase()
     };
 
-    writeJSON(pixConfigPath, novaConfig);
+    store.writeJSON(pixConfigPath, novaConfig);
     res.json({ status: 'success', data: novaConfig });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao salvar chave PIX.' });
   }
 });
 
+// ----------------------------------------------------
+// IMPRESSORA TÉRMICA
+// ----------------------------------------------------
+
+app.get('/api/printer-config', (req, res) => {
+  res.json(printerService.carregarConfig());
+});
+
+app.post('/api/printer-config', (req, res) => {
+  try {
+    const nova = printerService.salvarConfig(req.body || {});
+    io.emit('printer_config_atualizada', nova);
+    res.json({ status: 'success', config: nova });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao salvar a configuração da impressora.' });
+  }
+});
+
+// Lista as impressoras instaladas no Windows, para montar o seletor
+app.get('/api/printer/impressoras', async (req, res) => {
+  try {
+    const impressoras = await printerService.listarImpressoras();
+    res.json({ status: 'success', impressoras });
+  } catch (err) {
+    res.status(500).json({
+      error: err.mensagem || 'Não foi possível listar as impressoras do Windows.',
+      motivo: err.motivo || 'erro_desconhecido'
+    });
+  }
+});
+
+// Página de teste. Com { pedidoId } renderiza um comprovante real, o que
+// permite iterar no layout sem precisar criar venda.
+app.post('/api/printer/teste', (req, res) => {
+  const { config, pedidoId } = req.body || {};
+
+  const pedido = pedidoId
+    ? store.orders.find(o => o.id === pedidoId || String(o.numero) === String(pedidoId))
+    : null;
+
+  if (pedidoId && !pedido) {
+    return res.status(404).json({ error: 'Pedido não encontrado para o teste.' });
+  }
+
+  const resultado = printerService.imprimirTeste({ configTemporaria: config || null, pedido });
+
+  if (!resultado.enfileirado) {
+    return res.status(400).json({
+      error: resultado.motivo === 'sem_impressora'
+        ? 'Selecione uma impressora antes de imprimir o teste.'
+        : 'Não foi possível enfileirar o teste.',
+      motivo: resultado.motivo
+    });
+  }
+
+  res.json({ status: 'success', jobs: resultado.jobs });
+});
+
+app.get('/api/printer/fila', (req, res) => {
+  res.json(printerService.statusFila());
+});
+
+/*
+ * Impressão manual de um pedido existente.
+ *
+ * `segundaVia` distingue os dois usos: o caixa mandando o comprovante do
+ * pedido que acabou de fechar (primeira via, sem marca) e a reimpressão do
+ * histórico (marcada como 2a VIA). Os dois usam o mesmo layout e a mesma
+ * fila, então nunca divergem.
+ */
+function imprimirPedidoManual(req, res, { segundaVia }) {
+  const { id } = req.params;
+  const { vias, operadorNome } = req.body || {};
+
+  const pedido = store.orders.find(o => o.id === id);
+  if (!pedido) {
+    return res.status(404).json({ error: 'Pedido não encontrado.' });
+  }
+
+  // ignorarHabilitado: desligar a impressão automática não pode impedir a
+  // emissão pontual de um comprovante.
+  const resultado = printerService.imprimirPedido(pedido, {
+    vias,
+    segundaVia,
+    copias: 1,
+    ignorarHabilitado: true
+  });
+
+  if (!resultado.enfileirado) {
+    const mensagens = {
+      sem_impressora: 'Nenhuma impressora configurada. Configure na aba Impressora.',
+      nenhuma_via_ativa: 'Nenhuma via selecionada para impressão.'
+    };
+    return res.status(400).json({
+      error: mensagens[resultado.motivo] || 'Não foi possível imprimir.',
+      motivo: resultado.motivo
+    });
+  }
+
+  const operador = operadorNome ? String(operadorNome).trim() : 'Operador';
+  const viasTexto = Object.entries({ ...printerService.carregarConfig().vias, ...(vias || {}) })
+    .filter(([, ativa]) => ativa)
+    .map(([nome]) => nome)
+    .join(' + ');
+
+  // Comprovante duplicado circulando precisa ser rastreável
+  store.registrarLog(
+    pedido.id,
+    pedido.numero,
+    pedido.cliente,
+    operador,
+    segundaVia ? 'reimpressao' : 'impressao',
+    segundaVia
+      ? `Reimprimiu o Pedido #${pedido.numero} (${pedido.cliente}) | Vias: ${viasTexto || 'cliente'}`
+      : `Imprimiu o comprovante do Pedido #${pedido.numero} (${pedido.cliente})`
+  );
+
+  res.json({ status: 'success', jobs: resultado.jobs });
+}
+
+// Comprovante do cliente, primeira via, disparado pelo botão do Caixa
+app.post('/api/orders/:id/imprimir', (req, res) => {
+  imprimirPedidoManual(req, res, { segundaVia: false });
+});
+
+// Reimpressão manual a partir do histórico de Vendas
+app.post('/api/orders/:id/reimprimir', (req, res) => {
+  imprimirPedidoManual(req, res, { segundaVia: true });
+});
+
 // GET /api/logs - Obter histórico de auditoria
 app.get('/api/logs', (req, res) => {
-  res.json(auditLogs);
+  res.json(store.auditLogs);
 });
 
 // 2. Criar novo pedido com Forma de Pagamento e Pagar Depois (Telefone Obrigatório + Data de Cobrança)
 app.post('/api/orders', (req, res) => {
-  const { cliente, telefoneCliente, criadoPor, itens, formaPagamento, statusPagamento, dataCobranca } = req.body;
-  
-  if (!cliente || !cliente.trim()) {
-    return res.status(400).json({ error: 'O nome do cliente é obrigatório.' });
-  }
-  if (!itens || !Array.isArray(itens) || itens.length === 0) {
-    return res.status(400).json({ error: 'O pedido deve conter ao menos 1 item.' });
-  }
+  const resultado = ordersService.criarPedido(req.body);
 
-  const formaPgto = formaPagamento || 'pix';
-  const isPagarDepois = formaPgto === 'pagar_depois';
-
-  if (isPagarDepois && (!telefoneCliente || !telefoneCliente.trim())) {
-    return res.status(400).json({ error: 'O telefone do cliente é obrigatório para a opção Pagar Depois.' });
+  if (!resultado.ok) {
+    return res.status(resultado.status || 400).json({
+      error: resultado.mensagem,
+      erro: resultado.erro,
+      itensIndisponiveis: resultado.itensIndisponiveis
+    });
   }
 
-  const numero = getNextOrderNumber();
-  const total = itens.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-  const operadorNome = criadoPor ? criadoPor.trim() : 'Caixa';
-  const stPagamento = statusPagamento || (isPagarDepois ? 'pendente_pagamento' : 'pago');
-
-  const newOrder = {
-    id: `ORD-${numero}`,
-    numero,
-    cliente: cliente.trim(),
-    telefoneCliente: telefoneCliente ? telefoneCliente.trim() : null,
-    criadoPor: operadorNome,
-    preparadoPor: null,
-    formaPagamento: formaPgto,
-    statusPagamento: stPagamento,
-    dataCobranca: isPagarDepois ? (dataCobranca || null) : null,
-    itens,
-    total,
-    status: 'pendente',
-    criadoEm: new Date().toISOString(),
-    atualizadoEm: new Date().toISOString()
-  };
-
-  orders.unshift(newOrder);
-  writeJSON(ORDERS_FILE, orders);
-
-  // Formatar resumo detalhado dos itens e valores
-  const itensResumo = itens.map(i => `${i.quantidade}x ${i.nome} (R$ ${(i.preco * i.quantidade).toFixed(2)})`).join(', ');
-  const cobrancaText = isPagarDepois ? ` | PAGAR DEPOIS (Tel: ${telefoneCliente.trim()} | Cobrança: ${dataCobranca || 'Sem data'})` : ` | Forma: ${formaPgto.toUpperCase()}`;
-
-  // Registrar Log de Auditoria
-  registrarLog(
-    newOrder.id,
-    newOrder.numero,
-    newOrder.cliente,
-    operadorNome,
-    'criacao',
-    `Abriu o Pedido #${numero} para ${cliente.trim()} | Itens: ${itensResumo}${cobrancaText} | Total: R$ ${total.toFixed(2)}`,
-    itens
-  );
-
-  // Broadcast Socket Event
-  io.emit('novo_pedido_criado', newOrder);
-
-  res.status(201).json({ status: 'success', order: newOrder });
+  res.status(201).json({ status: 'success', order: resultado.order });
 });
 
 // Atualizar Pagamento do Pedido (Ex: Quitar Pagar Depois)
@@ -314,21 +336,21 @@ app.patch('/api/orders/:id/pagamento', (req, res) => {
   const { id } = req.params;
   const { statusPagamento, formaPagamento } = req.body;
 
-  const idx = orders.findIndex(o => o.id === id);
+  const idx = store.orders.findIndex(o => o.id === id);
   if (idx === -1) {
     return res.status(404).json({ error: 'Pedido não encontrado.' });
   }
 
-  if (statusPagamento) orders[idx].statusPagamento = statusPagamento;
-  if (formaPagamento) orders[idx].formaPagamento = formaPagamento;
-  orders[idx].atualizadoEm = new Date().toISOString();
+  if (statusPagamento) store.orders[idx].statusPagamento = statusPagamento;
+  if (formaPagamento) store.orders[idx].formaPagamento = formaPagamento;
+  store.orders[idx].atualizadoEm = new Date().toISOString();
 
-  writeJSON(ORDERS_FILE, orders);
+  store.salvarPedidos();
 
-  const updatedOrder = orders[idx];
+  const updatedOrder = store.orders[idx];
 
   // Audit Log
-  registrarLog(
+  store.registrarLog(
     updatedOrder.id,
     updatedOrder.numero,
     updatedOrder.cliente,
@@ -346,61 +368,16 @@ app.patch('/api/orders/:id/status', (req, res) => {
   const { id } = req.params;
   const { status, preparadoPor } = req.body;
 
-  const orderIndex = orders.findIndex(o => o.id === id);
-  if (orderIndex === -1) {
-    return res.status(404).json({ error: 'Pedido não encontrado.' });
+  const resultado = ordersService.alterarStatusPedido(id, status, preparadoPor);
+
+  if (!resultado.ok) {
+    return res.status(resultado.status || 400).json({
+      error: resultado.mensagem,
+      erro: resultado.erro
+    });
   }
 
-  const validStatus = ['pendente', 'em_preparo', 'pronto', 'entregue', 'cancelado'];
-  if (!validStatus.includes(status)) {
-    return res.status(400).json({ error: 'Status inválido.' });
-  }
-
-  orders[orderIndex].status = status;
-  const operadorNome = preparadoPor ? preparadoPor.trim() : 'Cozinha';
-
-  if (preparadoPor) {
-    orders[orderIndex].preparadoPor = operadorNome;
-  }
-  orders[orderIndex].atualizadoEm = new Date().toISOString();
-  
-  writeJSON(ORDERS_FILE, orders);
-
-  const updatedOrder = orders[orderIndex];
-
-  // Registrar Log de Auditoria
-  let acaoLog = 'status';
-  let descLog = `Atualizou status do Pedido #${updatedOrder.numero} para ${status}`;
-
-  if (status === 'em_preparo') {
-    acaoLog = 'preparo';
-    descLog = `Iniciou o preparo do Pedido #${updatedOrder.numero} (${updatedOrder.cliente})`;
-  } else if (status === 'pronto') {
-    acaoLog = 'pronto';
-    descLog = `Marcou o Pedido #${updatedOrder.numero} (${updatedOrder.cliente}) como PRONTO e chamou no balcão`;
-  } else if (status === 'entregue') {
-    acaoLog = 'entregue';
-    descLog = `Finalizou e entregou o Pedido #${updatedOrder.numero} para ${updatedOrder.cliente}`;
-  }
-
-  registrarLog(
-    updatedOrder.id,
-    updatedOrder.numero,
-    updatedOrder.cliente,
-    operadorNome,
-    acaoLog,
-    descLog
-  );
-
-  // Broadcast Status Change
-  io.emit('status_pedido_atualizado', updatedOrder);
-
-  // Special event when marked as 'pronto' for TV notification & sound
-  if (status === 'pronto') {
-    io.emit('pedido_chamado', updatedOrder);
-  }
-
-  res.json({ status: 'success', order: updatedOrder });
+  res.json({ status: 'success', order: resultado.order });
 });
 
 // Atualizar baixa de item individual do pedido via REST API
@@ -409,12 +386,12 @@ app.patch('/api/orders/:id/itens/:itemIndex', (req, res) => {
   const { entregue, operadorNome } = req.body;
   const idx = parseInt(itemIndex, 10);
 
-  const orderIndex = orders.findIndex(o => o.id === id);
+  const orderIndex = store.orders.findIndex(o => o.id === id);
   if (orderIndex === -1) {
     return res.status(404).json({ error: 'Pedido não encontrado.' });
   }
 
-  const order = orders[orderIndex];
+  const order = store.orders[orderIndex];
   if (!order.itens || !order.itens[idx]) {
     return res.status(404).json({ error: 'Item não encontrado.' });
   }
@@ -436,7 +413,7 @@ app.patch('/api/orders/:id/itens/:itemIndex', (req, res) => {
   }
 
   order.atualizadoEm = new Date().toISOString();
-  writeJSON(ORDERS_FILE, orders);
+  store.salvarPedidos();
 
   const opNome = operadorNome ? operadorNome.trim() : 'Atendente';
   const itemObj = order.itens[idx];
@@ -445,7 +422,7 @@ app.patch('/api/orders/:id/itens/:itemIndex', (req, res) => {
     ? `Entregou item '${itemNome}' do Pedido #${order.numero} (${order.cliente}) [Entrega Parcial ${entreguesItens}/${totalItens} itens]`
     : `Desmarcou entrega do item '${itemNome}' do Pedido #${order.numero} (${order.cliente})`;
 
-  registrarLog(
+  store.registrarLog(
     order.id,
     order.numero,
     order.cliente,
@@ -461,78 +438,132 @@ app.patch('/api/orders/:id/itens/:itemIndex', (req, res) => {
 
 // 4. Obter Cardápio
 app.get('/api/menu', (req, res) => {
-  res.json(menu);
+  res.json(store.menu);
 });
 
 // 5. Adicionar/Editar produto no cardápio
 app.post('/api/menu/produto', (req, res) => {
-  const { id, categoriaId, nome, descricao, preco, disponivel } = req.body;
-  
+  const { id, categoriaId, nome, descricao, preco, disponivel, controlaEstoque, estoque, estoqueMinimo } = req.body;
+
   if (!nome || !preco || !categoriaId) {
     return res.status(400).json({ error: 'Dados incompletos para o produto.' });
   }
 
+  // Campos de estoque so entram no merge quando vierem no payload. Sem isso,
+  // editar nome ou preco pelo Cardapio zeraria o estoque do produto.
+  const camposEstoque = {};
+  if (controlaEstoque !== undefined) camposEstoque.controlaEstoque = !!controlaEstoque;
+  if (estoque !== undefined) camposEstoque.estoque = Math.max(0, parseInt(estoque, 10) || 0);
+  if (estoqueMinimo !== undefined) camposEstoque.estoqueMinimo = Math.max(0, parseInt(estoqueMinimo, 10) || 0);
+
   let produtoAtualizado;
-  const prodIndex = menu.produtos.findIndex(p => p.id === id);
+  const prodIndex = store.menu.produtos.findIndex(p => p.id === id);
 
   if (prodIndex >= 0) {
-    menu.produtos[prodIndex] = {
-      ...menu.produtos[prodIndex],
+    store.menu.produtos[prodIndex] = {
+      ...store.menu.produtos[prodIndex],
       categoriaId,
       nome: nome.trim(),
       descricao: (descricao || '').trim(),
       preco: parseFloat(preco),
-      disponivel: disponivel !== undefined ? disponivel : true
+      disponivel: disponivel !== undefined ? disponivel : true,
+      ...camposEstoque
     };
-    produtoAtualizado = menu.produtos[prodIndex];
+    produtoAtualizado = store.menu.produtos[prodIndex];
   } else {
-    produtoAtualizado = {
+    produtoAtualizado = store.normalizarProdutoEstoque({
       id: `prod-${Date.now()}`,
       categoriaId,
       nome: nome.trim(),
       descricao: (descricao || '').trim(),
       preco: parseFloat(preco),
-      disponivel: disponivel !== undefined ? disponivel : true
-    };
-    menu.produtos.push(produtoAtualizado);
+      disponivel: disponivel !== undefined ? disponivel : true,
+      ...camposEstoque
+    }).produto;
+    store.menu.produtos.push(produtoAtualizado);
   }
 
-  writeJSON(MENU_FILE, menu);
-  io.emit('cardapio_atualizado', menu);
+  store.salvarMenu();
+  io.emit('cardapio_atualizado', store.menu);
 
-  res.json({ status: 'success', produto: produtoAtualizado, menu });
+  res.json({ status: 'success', produto: produtoAtualizado, menu: store.menu });
+});
+
+// 5.1 Ajuste manual de estoque (definir com { valor } ou repor com { delta })
+app.patch('/api/menu/produto/:id/estoque', (req, res) => {
+  const { id } = req.params;
+  const { valor, delta, operadorNome } = req.body;
+
+  const resultado = estoqueService.ajustar(id, { valor, delta });
+
+  if (!resultado.ok) {
+    const naoEncontrado = resultado.erro === 'produto_nao_encontrado';
+    return res.status(naoEncontrado ? 404 : 400).json({
+      error: naoEncontrado
+        ? 'Produto não encontrado.'
+        : 'Informe { valor } para definir ou { delta } para repor/abater.',
+      erro: resultado.erro
+    });
+  }
+
+  const operador = operadorNome ? String(operadorNome).trim() : 'Gerente';
+  const sinal = resultado.novo >= resultado.anterior ? '+' : '';
+  const variacao = resultado.novo - resultado.anterior;
+
+  store.registrarLog(
+    null,
+    null,
+    resultado.produto.nome,
+    operador,
+    'estoque_ajuste',
+    `Ajustou o estoque de '${resultado.produto.nome}': ${resultado.anterior} -> ${resultado.novo} (${sinal}${variacao})`
+  );
+
+  io.emit('cardapio_atualizado', store.menu);
+
+  res.json({
+    status: 'success',
+    produto: resultado.produto,
+    anterior: resultado.anterior,
+    novo: resultado.novo
+  });
+});
+
+// 5.2 Snapshot de estoque para telas que não usam socket
+app.get('/api/estoque', (req, res) => {
+  res.json(estoqueService.snapshot());
 });
 
 // 6. Excluir produto do cardápio
 app.delete('/api/menu/produto/:id', (req, res) => {
   const { id } = req.params;
-  const prodIndex = menu.produtos.findIndex(p => p.id === id);
+  const prodIndex = store.menu.produtos.findIndex(p => p.id === id);
 
   if (prodIndex === -1) {
     return res.status(404).json({ error: 'Produto não encontrado.' });
   }
 
-  const produtoRemovido = menu.produtos.splice(prodIndex, 1)[0];
-  writeJSON(MENU_FILE, menu);
-  io.emit('cardapio_atualizado', menu);
+  const produtoRemovido = store.menu.produtos.splice(prodIndex, 1)[0];
+  store.salvarMenu();
+  io.emit('cardapio_atualizado', store.menu);
 
-  res.json({ status: 'success', produto: produtoRemovido, menu });
+  res.json({ status: 'success', produto: produtoRemovido, menu: store.menu });
 });
 
 // 7. Toggle disponibilidade do produto
 app.patch('/api/menu/produto/:id/disponivel', (req, res) => {
   const { id } = req.params;
-  const prodIndex = menu.produtos.findIndex(p => p.id === id);
+  const prodIndex = store.menu.produtos.findIndex(p => p.id === id);
 
   if (prodIndex === -1) {
     return res.status(404).json({ error: 'Produto não encontrado.' });
   }
 
-  menu.produtos[prodIndex].disponivel = !menu.produtos[prodIndex].disponivel;
-  writeJSON(MENU_FILE, menu);
-  io.emit('cardapio_atualizado', menu);
+  store.menu.produtos[prodIndex].disponivel = !store.menu.produtos[prodIndex].disponivel;
+  store.salvarMenu();
+  io.emit('cardapio_atualizado', store.menu);
 
-  res.json({ status: 'success', produto: menu.produtos[prodIndex], menu });
+  res.json({ status: 'success', produto: store.menu.produtos[prodIndex], menu: store.menu });
 });
 
 // 8. Adicionar/Editar categoria no cardápio
@@ -544,48 +575,48 @@ app.post('/api/menu/categoria', (req, res) => {
   }
 
   const catId = id || nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-  const catIndex = menu.categorias.findIndex(c => c.id === catId || c.id === id);
+  const catIndex = store.menu.categorias.findIndex(c => c.id === catId || c.id === id);
 
   if (catIndex >= 0) {
-    menu.categorias[catIndex] = {
-      ...menu.categorias[catIndex],
+    store.menu.categorias[catIndex] = {
+      ...store.menu.categorias[catIndex],
       nome: nome.trim(),
       icone: icone || 'utensils'
     };
   } else {
-    menu.categorias.push({
+    store.menu.categorias.push({
       id: catId,
       nome: nome.trim(),
       icone: icone || 'utensils'
     });
   }
 
-  writeJSON(MENU_FILE, menu);
-  io.emit('cardapio_atualizado', menu);
+  store.salvarMenu();
+  io.emit('cardapio_atualizado', store.menu);
 
-  res.json({ status: 'success', menu });
+  res.json({ status: 'success', menu: store.menu });
 });
 
 // 9. Excluir categoria
 app.delete('/api/menu/categoria/:id', (req, res) => {
   const { id } = req.params;
-  const catIndex = menu.categorias.findIndex(c => c.id === id);
+  const catIndex = store.menu.categorias.findIndex(c => c.id === id);
 
   if (catIndex === -1) {
     return res.status(404).json({ error: 'Categoria não encontrada.' });
   }
 
   // Check if there are products in this category
-  const produtosNaCategoria = menu.produtos.filter(p => p.categoriaId === id);
+  const produtosNaCategoria = store.menu.produtos.filter(p => p.categoriaId === id);
   if (produtosNaCategoria.length > 0) {
     return res.status(400).json({ error: 'Não é possível excluir uma categoria que possui produtos cadastrados.' });
   }
 
-  menu.categorias.splice(catIndex, 1);
-  writeJSON(MENU_FILE, menu);
-  io.emit('cardapio_atualizado', menu);
+  store.menu.categorias.splice(catIndex, 1);
+  store.salvarMenu();
+  io.emit('cardapio_atualizado', store.menu);
 
-  res.json({ status: 'success', menu });
+  res.json({ status: 'success', menu: store.menu });
 });
 
 
@@ -594,131 +625,47 @@ io.on('connection', (socket) => {
   console.log(`[Socket.io] Novo cliente conectado: ${socket.id}`);
 
   // Transmit initial state immediately upon connection
-  socket.emit('pedidos_iniciais', orders);
-  socket.emit('cardapio_inicial', menu);
+  socket.emit('pedidos_iniciais', store.orders);
+  socket.emit('cardapio_inicial', store.menu);
+  socket.emit('estoque_atualizado', estoqueService.snapshot());
 
   // Client triggers creation
   socket.on('criar_pedido', (pedidoData, callback) => {
-    const { cliente, telefoneCliente, criadoPor, itens, formaPagamento, statusPagamento, dataCobranca } = pedidoData;
-    if (!cliente || !itens || itens.length === 0) {
-      if (callback) callback({ error: 'Dados de pedido inválidos' });
+    // socketId identifica de quem sao as reservas que viram venda
+    const resultado = ordersService.criarPedido({ ...(pedidoData || {}), socketId: socket.id });
+
+    if (!resultado.ok) {
+      if (callback) {
+        callback({
+          error: resultado.mensagem,
+          erro: resultado.erro,
+          itensIndisponiveis: resultado.itensIndisponiveis
+        });
+      }
       return;
     }
 
-    const formaPgto = formaPagamento || 'pix';
-    const isPagarDepois = formaPgto === 'pagar_depois';
-
-    if (isPagarDepois && (!telefoneCliente || !telefoneCliente.trim())) {
-      if (callback) callback({ error: 'Telefone do cliente é obrigatório para Pagar Depois' });
-      return;
-    }
-
-    const numero = getNextOrderNumber();
-    const total = itens.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-    const operadorNome = criadoPor ? criadoPor.trim() : 'Caixa';
-    const stPagamento = statusPagamento || (isPagarDepois ? 'pendente_pagamento' : 'pago');
-
-    const newOrder = {
-      id: `ORD-${numero}`,
-      numero,
-      cliente: cliente.trim(),
-      telefoneCliente: telefoneCliente ? telefoneCliente.trim() : null,
-      criadoPor: operadorNome,
-      preparadoPor: null,
-      formaPagamento: formaPgto,
-      statusPagamento: stPagamento,
-      dataCobranca: isPagarDepois ? (dataCobranca || null) : null,
-      itens,
-      total,
-      status: 'pendente',
-      criadoEm: new Date().toISOString(),
-      atualizadoEm: new Date().toISOString()
-    };
-
-    orders.unshift(newOrder);
-    writeJSON(ORDERS_FILE, orders);
-
-    // Formatar resumo detalhado dos itens e valores
-    const itensResumo = itens.map(i => `${i.quantidade}x ${i.nome} (R$ ${(i.preco * i.quantidade).toFixed(2)})`).join(', ');
-    const cobrancaText = isPagarDepois ? ` | PAGAR DEPOIS (Tel: ${telefoneCliente.trim()} | Cobrança: ${dataCobranca || 'Sem data'})` : ` | Forma: ${formaPgto.toUpperCase()}`;
-
-    // Audit Log
-    registrarLog(
-      newOrder.id,
-      newOrder.numero,
-      newOrder.cliente,
-      operadorNome,
-      'criacao',
-      `Abriu o Pedido #${numero} para ${cliente.trim()} | Itens: ${itensResumo}${cobrancaText} | Total: R$ ${total.toFixed(2)}`,
-      itens
-    );
-
-    io.emit('novo_pedido_criado', newOrder);
-    if (callback) callback({ status: 'success', order: newOrder });
+    if (callback) callback({ status: 'success', order: resultado.order });
   });
 
   // Client triggers status change
   socket.on('mudar_status_pedido', ({ id, status, preparadoPor }, callback) => {
-    const orderIndex = orders.findIndex(o => o.id === id);
-    if (orderIndex !== -1) {
-      const operadorNome = preparadoPor ? preparadoPor.trim() : 'Cozinha';
+    const resultado = ordersService.alterarStatusPedido(id, status, preparadoPor);
 
-      orders[orderIndex].status = status;
-      if (preparadoPor) {
-        orders[orderIndex].preparadoPor = operadorNome;
-      }
-
-      // Se o pedido inteiro for marcado como entregue, marcar todos os itens como entregues
-      if (status === 'entregue' && Array.isArray(orders[orderIndex].itens)) {
-        orders[orderIndex].itens = orders[orderIndex].itens.map(i => ({ ...i, entregue: true }));
-      }
-
-      orders[orderIndex].atualizadoEm = new Date().toISOString();
-      writeJSON(ORDERS_FILE, orders);
-
-      const updatedOrder = orders[orderIndex];
-
-      // Audit Log
-      let acaoLog = 'status';
-      let descLog = `Atualizou status do Pedido #${updatedOrder.numero} para ${status}`;
-
-      if (status === 'em_preparo') {
-        acaoLog = 'preparo';
-        descLog = `Iniciou o preparo do Pedido #${updatedOrder.numero} (${updatedOrder.cliente})`;
-      } else if (status === 'pronto') {
-        acaoLog = 'pronto';
-        descLog = `Marcou o Pedido #${updatedOrder.numero} (${updatedOrder.cliente}) como PRONTO e chamou no balcão`;
-      } else if (status === 'entregue') {
-        acaoLog = 'entregue';
-        descLog = `Finalizou e entregou o Pedido #${updatedOrder.numero} para ${updatedOrder.cliente}`;
-      }
-
-      registrarLog(
-        updatedOrder.id,
-        updatedOrder.numero,
-        updatedOrder.cliente,
-        operadorNome,
-        acaoLog,
-        descLog,
-        updatedOrder.itens
-      );
-
-      io.emit('status_pedido_atualizado', updatedOrder);
-
-      if (status === 'pronto') {
-        io.emit('pedido_chamado', updatedOrder);
-      }
-
-      if (callback) callback({ status: 'success', order: updatedOrder });
+    if (!resultado.ok) {
+      if (callback) callback({ error: resultado.mensagem, erro: resultado.erro });
+      return;
     }
+
+    if (callback) callback({ status: 'success', order: resultado.order });
   });
 
   // Client triggers item-level partial delivery update
   socket.on('alternar_item_entregue', ({ orderId, itemIndex, entregue, operadorNome }, callback) => {
-    const orderIndex = orders.findIndex(o => o.id === orderId);
+    const orderIndex = store.orders.findIndex(o => o.id === orderId);
     if (orderIndex === -1) return;
 
-    const order = orders[orderIndex];
+    const order = store.orders[orderIndex];
     if (!order.itens || !order.itens[itemIndex]) return;
 
     const novoStatusItem = entregue !== undefined ? entregue : !order.itens[itemIndex].entregue;
@@ -738,7 +685,7 @@ io.on('connection', (socket) => {
     }
 
     order.atualizadoEm = new Date().toISOString();
-    writeJSON(ORDERS_FILE, orders);
+    store.salvarPedidos();
 
     const opNome = operadorNome ? operadorNome.trim() : 'Atendente';
     const itemObj = order.itens[itemIndex];
@@ -747,7 +694,7 @@ io.on('connection', (socket) => {
       ? `Entregou item '${itemNome}' do Pedido #${order.numero} (${order.cliente}) [Entrega Parcial ${entreguesItens}/${totalItens} itens]`
       : `Desmarcou entrega do item '${itemNome}' do Pedido #${order.numero} (${order.cliente})`;
 
-    registrarLog(
+    store.registrarLog(
       order.id,
       order.numero,
       order.cliente,
@@ -761,8 +708,33 @@ io.on('connection', (socket) => {
     if (callback) callback({ status: 'success', order });
   });
 
+  // ----------------------------------------------------
+  // ESTOQUE: reservas de carrinho
+  // ----------------------------------------------------
+
+  socket.on('reservar_item', ({ produtoId, quantidade } = {}, callback) => {
+    const resultado = estoqueService.reservar(produtoId, socket.id, quantidade ?? 1);
+    if (callback) callback(resultado);
+  });
+
+  socket.on('liberar_item', ({ produtoId, quantidade } = {}, callback) => {
+    const resultado = estoqueService.liberar(produtoId, socket.id, quantidade ?? 1);
+    if (callback) callback(resultado);
+  });
+
+  socket.on('liberar_carrinho', (_payload, callback) => {
+    const afetados = estoqueService.liberarTudo(socket.id);
+    if (callback) callback({ ok: true, produtosLiberados: afetados });
+  });
+
+  socket.on('solicitar_estoque', (_payload, callback) => {
+    if (callback) callback({ ok: true, estoque: estoqueService.snapshot() });
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket.io] Cliente desconectado: ${socket.id}`);
+    // Caixa que fecha o navegador devolve na hora o que estava segurando
+    estoqueService.liberarTudo(socket.id);
   });
 });
 
@@ -779,12 +751,17 @@ if (fs.existsSync(distPath)) {
   });
 }
 
+// Varredura periódica de reservas de carrinho com TTL vencido
+estoqueService.iniciarVarredura();
+
+// A fila de impressão avisa o resultado de cada job; o caixa precisa ver
+// a falha na tela, já que comprovante que não saiu é cliente sem comanda.
+printerService.aoEvento((evento, payload) => {
+  io.emit(evento, payload);
+});
+
 // Iniciar Servidor HTTP + WebSocket
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor da Festa do Morango rodando na porta ${PORT}`);
   console.log(`👉 Acesse localmente: http://localhost:${PORT}`);
 });
-// Menu atualizado com a Tabela de Valores oficial da Festa do Morango
-
-
-
