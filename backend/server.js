@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 
 const store = require('./store');
+const ordersService = require('./services/orders');
 
 const app = express();
 app.use(cors());
@@ -33,13 +34,6 @@ if (!fs.existsSync(pixConfigPath)) {
     cidadeBeneficiario: 'SAO PAULO'
   };
   store.writeJSON(pixConfigPath, pixPadrao);
-}
-
-// Function to calculate next comanda number
-function getNextOrderNumber() {
-  if (store.orders.length === 0) return 101;
-  const maxNum = Math.max(...store.orders.map(o => o.numero || 100));
-  return maxNum + 1;
 }
 
 // REST Endpoints
@@ -192,66 +186,16 @@ app.get('/api/logs', (req, res) => {
 
 // 2. Criar novo pedido com Forma de Pagamento e Pagar Depois (Telefone Obrigatório + Data de Cobrança)
 app.post('/api/orders', (req, res) => {
-  const { cliente, telefoneCliente, criadoPor, itens, formaPagamento, statusPagamento, dataCobranca } = req.body;
+  const resultado = ordersService.criarPedido(req.body);
 
-  if (!cliente || !cliente.trim()) {
-    return res.status(400).json({ error: 'O nome do cliente é obrigatório.' });
-  }
-  if (!itens || !Array.isArray(itens) || itens.length === 0) {
-    return res.status(400).json({ error: 'O pedido deve conter ao menos 1 item.' });
-  }
-
-  const formaPgto = formaPagamento || 'pix';
-  const isPagarDepois = formaPgto === 'pagar_depois';
-
-  if (isPagarDepois && (!telefoneCliente || !telefoneCliente.trim())) {
-    return res.status(400).json({ error: 'O telefone do cliente é obrigatório para a opção Pagar Depois.' });
+  if (!resultado.ok) {
+    return res.status(resultado.status || 400).json({
+      error: resultado.mensagem,
+      erro: resultado.erro
+    });
   }
 
-  const numero = getNextOrderNumber();
-  const total = itens.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-  const operadorNome = criadoPor ? criadoPor.trim() : 'Caixa';
-  const stPagamento = statusPagamento || (isPagarDepois ? 'pendente_pagamento' : 'pago');
-
-  const newOrder = {
-    id: `ORD-${numero}`,
-    numero,
-    cliente: cliente.trim(),
-    telefoneCliente: telefoneCliente ? telefoneCliente.trim() : null,
-    criadoPor: operadorNome,
-    preparadoPor: null,
-    formaPagamento: formaPgto,
-    statusPagamento: stPagamento,
-    dataCobranca: isPagarDepois ? (dataCobranca || null) : null,
-    itens,
-    total,
-    status: 'pendente',
-    criadoEm: new Date().toISOString(),
-    atualizadoEm: new Date().toISOString()
-  };
-
-  store.orders.unshift(newOrder);
-  store.salvarPedidos();
-
-  // Formatar resumo detalhado dos itens e valores
-  const itensResumo = itens.map(i => `${i.quantidade}x ${i.nome} (R$ ${(i.preco * i.quantidade).toFixed(2)})`).join(', ');
-  const cobrancaText = isPagarDepois ? ` | PAGAR DEPOIS (Tel: ${telefoneCliente.trim()} | Cobrança: ${dataCobranca || 'Sem data'})` : ` | Forma: ${formaPgto.toUpperCase()}`;
-
-  // Registrar Log de Auditoria
-  store.registrarLog(
-    newOrder.id,
-    newOrder.numero,
-    newOrder.cliente,
-    operadorNome,
-    'criacao',
-    `Abriu o Pedido #${numero} para ${cliente.trim()} | Itens: ${itensResumo}${cobrancaText} | Total: R$ ${total.toFixed(2)}`,
-    itens
-  );
-
-  // Broadcast Socket Event
-  io.emit('novo_pedido_criado', newOrder);
-
-  res.status(201).json({ status: 'success', order: newOrder });
+  res.status(201).json({ status: 'success', order: resultado.order });
 });
 
 // Atualizar Pagamento do Pedido (Ex: Quitar Pagar Depois)
@@ -291,61 +235,16 @@ app.patch('/api/orders/:id/status', (req, res) => {
   const { id } = req.params;
   const { status, preparadoPor } = req.body;
 
-  const orderIndex = store.orders.findIndex(o => o.id === id);
-  if (orderIndex === -1) {
-    return res.status(404).json({ error: 'Pedido não encontrado.' });
+  const resultado = ordersService.alterarStatusPedido(id, status, preparadoPor);
+
+  if (!resultado.ok) {
+    return res.status(resultado.status || 400).json({
+      error: resultado.mensagem,
+      erro: resultado.erro
+    });
   }
 
-  const validStatus = ['pendente', 'em_preparo', 'pronto', 'entregue', 'cancelado'];
-  if (!validStatus.includes(status)) {
-    return res.status(400).json({ error: 'Status inválido.' });
-  }
-
-  store.orders[orderIndex].status = status;
-  const operadorNome = preparadoPor ? preparadoPor.trim() : 'Cozinha';
-
-  if (preparadoPor) {
-    store.orders[orderIndex].preparadoPor = operadorNome;
-  }
-  store.orders[orderIndex].atualizadoEm = new Date().toISOString();
-
-  store.salvarPedidos();
-
-  const updatedOrder = store.orders[orderIndex];
-
-  // Registrar Log de Auditoria
-  let acaoLog = 'status';
-  let descLog = `Atualizou status do Pedido #${updatedOrder.numero} para ${status}`;
-
-  if (status === 'em_preparo') {
-    acaoLog = 'preparo';
-    descLog = `Iniciou o preparo do Pedido #${updatedOrder.numero} (${updatedOrder.cliente})`;
-  } else if (status === 'pronto') {
-    acaoLog = 'pronto';
-    descLog = `Marcou o Pedido #${updatedOrder.numero} (${updatedOrder.cliente}) como PRONTO e chamou no balcão`;
-  } else if (status === 'entregue') {
-    acaoLog = 'entregue';
-    descLog = `Finalizou e entregou o Pedido #${updatedOrder.numero} para ${updatedOrder.cliente}`;
-  }
-
-  store.registrarLog(
-    updatedOrder.id,
-    updatedOrder.numero,
-    updatedOrder.cliente,
-    operadorNome,
-    acaoLog,
-    descLog
-  );
-
-  // Broadcast Status Change
-  io.emit('status_pedido_atualizado', updatedOrder);
-
-  // Special event when marked as 'pronto' for TV notification & sound
-  if (status === 'pronto') {
-    io.emit('pedido_chamado', updatedOrder);
-  }
-
-  res.json({ status: 'success', order: updatedOrder });
+  res.json({ status: 'success', order: resultado.order });
 });
 
 // Atualizar baixa de item individual do pedido via REST API
@@ -544,118 +443,26 @@ io.on('connection', (socket) => {
 
   // Client triggers creation
   socket.on('criar_pedido', (pedidoData, callback) => {
-    const { cliente, telefoneCliente, criadoPor, itens, formaPagamento, statusPagamento, dataCobranca } = pedidoData;
-    if (!cliente || !itens || itens.length === 0) {
-      if (callback) callback({ error: 'Dados de pedido inválidos' });
+    const resultado = ordersService.criarPedido(pedidoData || {});
+
+    if (!resultado.ok) {
+      if (callback) callback({ error: resultado.mensagem, erro: resultado.erro });
       return;
     }
 
-    const formaPgto = formaPagamento || 'pix';
-    const isPagarDepois = formaPgto === 'pagar_depois';
-
-    if (isPagarDepois && (!telefoneCliente || !telefoneCliente.trim())) {
-      if (callback) callback({ error: 'Telefone do cliente é obrigatório para Pagar Depois' });
-      return;
-    }
-
-    const numero = getNextOrderNumber();
-    const total = itens.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
-    const operadorNome = criadoPor ? criadoPor.trim() : 'Caixa';
-    const stPagamento = statusPagamento || (isPagarDepois ? 'pendente_pagamento' : 'pago');
-
-    const newOrder = {
-      id: `ORD-${numero}`,
-      numero,
-      cliente: cliente.trim(),
-      telefoneCliente: telefoneCliente ? telefoneCliente.trim() : null,
-      criadoPor: operadorNome,
-      preparadoPor: null,
-      formaPagamento: formaPgto,
-      statusPagamento: stPagamento,
-      dataCobranca: isPagarDepois ? (dataCobranca || null) : null,
-      itens,
-      total,
-      status: 'pendente',
-      criadoEm: new Date().toISOString(),
-      atualizadoEm: new Date().toISOString()
-    };
-
-    store.orders.unshift(newOrder);
-    store.salvarPedidos();
-
-    // Formatar resumo detalhado dos itens e valores
-    const itensResumo = itens.map(i => `${i.quantidade}x ${i.nome} (R$ ${(i.preco * i.quantidade).toFixed(2)})`).join(', ');
-    const cobrancaText = isPagarDepois ? ` | PAGAR DEPOIS (Tel: ${telefoneCliente.trim()} | Cobrança: ${dataCobranca || 'Sem data'})` : ` | Forma: ${formaPgto.toUpperCase()}`;
-
-    // Audit Log
-    store.registrarLog(
-      newOrder.id,
-      newOrder.numero,
-      newOrder.cliente,
-      operadorNome,
-      'criacao',
-      `Abriu o Pedido #${numero} para ${cliente.trim()} | Itens: ${itensResumo}${cobrancaText} | Total: R$ ${total.toFixed(2)}`,
-      itens
-    );
-
-    io.emit('novo_pedido_criado', newOrder);
-    if (callback) callback({ status: 'success', order: newOrder });
+    if (callback) callback({ status: 'success', order: resultado.order });
   });
 
   // Client triggers status change
   socket.on('mudar_status_pedido', ({ id, status, preparadoPor }, callback) => {
-    const orderIndex = store.orders.findIndex(o => o.id === id);
-    if (orderIndex !== -1) {
-      const operadorNome = preparadoPor ? preparadoPor.trim() : 'Cozinha';
+    const resultado = ordersService.alterarStatusPedido(id, status, preparadoPor);
 
-      store.orders[orderIndex].status = status;
-      if (preparadoPor) {
-        store.orders[orderIndex].preparadoPor = operadorNome;
-      }
-
-      // Se o pedido inteiro for marcado como entregue, marcar todos os itens como entregues
-      if (status === 'entregue' && Array.isArray(store.orders[orderIndex].itens)) {
-        store.orders[orderIndex].itens = store.orders[orderIndex].itens.map(i => ({ ...i, entregue: true }));
-      }
-
-      store.orders[orderIndex].atualizadoEm = new Date().toISOString();
-      store.salvarPedidos();
-
-      const updatedOrder = store.orders[orderIndex];
-
-      // Audit Log
-      let acaoLog = 'status';
-      let descLog = `Atualizou status do Pedido #${updatedOrder.numero} para ${status}`;
-
-      if (status === 'em_preparo') {
-        acaoLog = 'preparo';
-        descLog = `Iniciou o preparo do Pedido #${updatedOrder.numero} (${updatedOrder.cliente})`;
-      } else if (status === 'pronto') {
-        acaoLog = 'pronto';
-        descLog = `Marcou o Pedido #${updatedOrder.numero} (${updatedOrder.cliente}) como PRONTO e chamou no balcão`;
-      } else if (status === 'entregue') {
-        acaoLog = 'entregue';
-        descLog = `Finalizou e entregou o Pedido #${updatedOrder.numero} para ${updatedOrder.cliente}`;
-      }
-
-      store.registrarLog(
-        updatedOrder.id,
-        updatedOrder.numero,
-        updatedOrder.cliente,
-        operadorNome,
-        acaoLog,
-        descLog,
-        updatedOrder.itens
-      );
-
-      io.emit('status_pedido_atualizado', updatedOrder);
-
-      if (status === 'pronto') {
-        io.emit('pedido_chamado', updatedOrder);
-      }
-
-      if (callback) callback({ status: 'success', order: updatedOrder });
+    if (!resultado.ok) {
+      if (callback) callback({ error: resultado.mensagem, erro: resultado.erro });
+      return;
     }
+
+    if (callback) callback({ status: 'success', order: resultado.order });
   });
 
   // Client triggers item-level partial delivery update

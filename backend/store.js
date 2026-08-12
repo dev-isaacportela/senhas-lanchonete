@@ -12,7 +12,11 @@
 const fs = require('fs');
 const path = require('path');
 
-const DATA_DIR = path.join(__dirname, 'data');
+// LANCHONETE_DATA_DIR permite apontar o servidor para uma copia dos dados
+// durante testes, sem risco de mexer nos JSON de producao.
+const DATA_DIR = process.env.LANCHONETE_DATA_DIR
+  ? path.resolve(process.env.LANCHONETE_DATA_DIR)
+  : path.join(__dirname, 'data');
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 const MENU_FILE = path.join(DATA_DIR, 'menu.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
