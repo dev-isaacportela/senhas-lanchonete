@@ -190,6 +190,36 @@ copy /b backend\scripts\spike-output.bin \\localhost\NOME_COMPARTILHADO
 
 ---
 
+## 💾 Onde os dados moram
+
+| Arquivo | Natureza | Versionado? |
+|---|---|---|
+| `orders.json`, `logs.json` | Estado de operação | **Não** — nascem vazios |
+| `menu.json`, `users.json`, `pix-config.json` | Configuração | Sim, e servem de semente |
+| `printer-config.json` | Configuração da impressora | Sim; se faltar, é recriado com os padrões |
+
+`orders.json` e `logs.json` saíram do git de propósito. O Render clona o repositório a cada deploy: enquanto eles estavam versionados, cada deploy sobrescrevia a produção com os pedidos do commit — não era só efemeridade, era reversão.
+
+### Disco persistente no Render
+
+O container é recriado a cada deploy e a cada reinício. Sem um disco montado, os pedidos somem nos dois casos.
+
+1. No painel do serviço, criar um disco com ponto de montagem `/var/data`.
+2. Adicionar a variável de ambiente `LANCHONETE_DATA_DIR=/var/data`.
+3. Fazer o deploy. No primeiro boot o log mostra:
+
+```
+[store] semente copiada para o disco: menu.json
+[store] semente copiada para o disco: users.json
+[store] semente copiada para o disco: pix-config.json
+```
+
+A partir daí `/var/data` é a cópia viva. A semente só preenche o que está **faltando** — o arquivo que já existe no disco nunca é sobrescrito pelo estado do commit, senão o estoque e o cardápio editados na operação voltariam a cada deploy.
+
+Para mudar o cardápio em produção, edite pela tela Cardápio. Alterar `backend/data/menu.json` no repositório só afeta instalações novas.
+
+---
+
 ## 🧪 Testar sem tocar nos dados reais
 
 O servidor aceita `LANCHONETE_DATA_DIR` para apontar para uma cópia descartável de `backend/data`:
@@ -197,3 +227,5 @@ O servidor aceita `LANCHONETE_DATA_DIR` para apontar para uma cópia descartáve
 ```bash
 LANCHONETE_DATA_DIR=/caminho/para/copia PORT=3099 node backend/server.js
 ```
+
+Apontando para uma pasta **vazia**, o servidor se comporta como uma instalação nova: copia as sementes, sobe sem pedidos e numera a primeira comanda como 101.
