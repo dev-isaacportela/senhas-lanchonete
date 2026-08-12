@@ -12,6 +12,7 @@
 
 const store = require('../store');
 const estoque = require('./estoque');
+const printer = require('./printer');
 
 const STATUS_VALIDOS = ['pendente', 'em_preparo', 'pronto', 'entregue', 'entrega_parcial', 'cancelado'];
 
@@ -131,6 +132,15 @@ function criarPedido(payload = {}) {
   }
 
   store.emitir('novo_pedido_criado', newOrder);
+
+  // Impressao e o ultimo passo e nunca bloqueia: o pedido ja esta persistido
+  // e transmitido. Impressora desligada vira aviso na tela do caixa, jamais
+  // erro na venda.
+  try {
+    printer.imprimirPedido(newOrder);
+  } catch (err) {
+    console.error('[impressao] falha ao enfileirar comprovante:', err);
+  }
 
   return { ok: true, order: newOrder };
 }

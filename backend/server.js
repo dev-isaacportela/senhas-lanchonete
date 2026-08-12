@@ -8,6 +8,7 @@ const path = require('path');
 const store = require('./store');
 const ordersService = require('./services/orders');
 const estoqueService = require('./services/estoque');
+const printerService = require('./services/printer');
 
 const app = express();
 app.use(cors());
@@ -178,6 +179,117 @@ app.post('/api/pix-config', (req, res) => {
   } catch (err) {
     res.status(500).json({ error: 'Erro ao salvar chave PIX.' });
   }
+});
+
+// ----------------------------------------------------
+// IMPRESSORA TÉRMICA
+// ----------------------------------------------------
+
+app.get('/api/printer-config', (req, res) => {
+  res.json(printerService.carregarConfig());
+});
+
+app.post('/api/printer-config', (req, res) => {
+  try {
+    const nova = printerService.salvarConfig(req.body || {});
+    io.emit('printer_config_atualizada', nova);
+    res.json({ status: 'success', config: nova });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao salvar a configuração da impressora.' });
+  }
+});
+
+// Lista as impressoras instaladas no Windows, para montar o seletor
+app.get('/api/printer/impressoras', async (req, res) => {
+  try {
+    const impressoras = await printerService.listarImpressoras();
+    res.json({ status: 'success', impressoras });
+  } catch (err) {
+    res.status(500).json({
+      error: err.mensagem || 'Não foi possível listar as impressoras do Windows.',
+      motivo: err.motivo || 'erro_desconhecido'
+    });
+  }
+});
+
+// Página de teste. Com { pedidoId } renderiza um comprovante real, o que
+// permite iterar no layout sem precisar criar venda.
+app.post('/api/printer/teste', (req, res) => {
+  const { config, pedidoId } = req.body || {};
+
+  const pedido = pedidoId
+    ? store.orders.find(o => o.id === pedidoId || String(o.numero) === String(pedidoId))
+    : null;
+
+  if (pedidoId && !pedido) {
+    return res.status(404).json({ error: 'Pedido não encontrado para o teste.' });
+  }
+
+  const resultado = printerService.imprimirTeste({ configTemporaria: config || null, pedido });
+
+  if (!resultado.enfileirado) {
+    return res.status(400).json({
+      error: resultado.motivo === 'sem_impressora'
+        ? 'Selecione uma impressora antes de imprimir o teste.'
+        : 'Não foi possível enfileirar o teste.',
+      motivo: resultado.motivo
+    });
+  }
+
+  res.json({ status: 'success', jobs: resultado.jobs });
+});
+
+app.get('/api/printer/fila', (req, res) => {
+  res.json(printerService.statusFila());
+});
+
+// Reimpressão manual de um pedido já existente
+app.post('/api/orders/:id/reimprimir', (req, res) => {
+  const { id } = req.params;
+  const { vias, operadorNome } = req.body || {};
+
+  const pedido = store.orders.find(o => o.id === id);
+  if (!pedido) {
+    return res.status(404).json({ error: 'Pedido não encontrado.' });
+  }
+
+  // ignorarHabilitado: desligar a impressão automática não pode impedir a
+  // emissão pontual de um comprovante.
+  const resultado = printerService.imprimirPedido(pedido, {
+    vias,
+    segundaVia: true,
+    copias: 1,
+    ignorarHabilitado: true
+  });
+
+  if (!resultado.enfileirado) {
+    const mensagens = {
+      sem_impressora: 'Nenhuma impressora configurada. Configure na aba Impressora.',
+      nenhuma_via_ativa: 'Nenhuma via selecionada para reimpressão.'
+    };
+    return res.status(400).json({
+      error: mensagens[resultado.motivo] || 'Não foi possível reimprimir.',
+      motivo: resultado.motivo
+    });
+  }
+
+  const operador = operadorNome ? String(operadorNome).trim() : 'Operador';
+  const viasTexto = Object.entries({ ...printerService.carregarConfig().vias, ...(vias || {}) })
+    .filter(([, ativa]) => ativa)
+    .map(([nome]) => nome)
+    .join(' + ');
+
+  // Comprovante duplicado circulando precisa ser rastreável
+  store.registrarLog(
+    pedido.id,
+    pedido.numero,
+    pedido.cliente,
+    operador,
+    'reimpressao',
+    `Reimprimiu o Pedido #${pedido.numero} (${pedido.cliente}) | Vias: ${viasTexto || 'cliente'}`
+  );
+
+  res.json({ status: 'success', jobs: resultado.jobs });
 });
 
 // GET /api/logs - Obter histórico de auditoria
@@ -622,6 +734,12 @@ if (fs.existsSync(distPath)) {
 
 // Varredura periódica de reservas de carrinho com TTL vencido
 estoqueService.iniciarVarredura();
+
+// A fila de impressão avisa o resultado de cada job; o caixa precisa ver
+// a falha na tela, já que comprovante que não saiu é cliente sem comanda.
+printerService.aoEvento((evento, payload) => {
+  io.emit(evento, payload);
+});
 
 // Iniciar Servidor HTTP + WebSocket
 server.listen(PORT, '0.0.0.0', () => {
