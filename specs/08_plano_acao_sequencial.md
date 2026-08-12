@@ -4,6 +4,14 @@ Ordem única de execução para colocar o sistema na nuvem com impressão funcio
 
 Companheiro de `07_agente_impressao_spec.md`, que detalha o **como** do agente. Este documento define **em que ordem** e **o que vem antes**.
 
+> **Atualização de 12/08/2026 — a hospedagem mudou de Render para VPS Linux.**
+>
+> Os Blocos 0 e 1 foram escritos contra o Render e estão superados pelo `09_deploy_vps.md`, que provisiona a VPS do zero. Ficam aqui como registro do porquê.
+>
+> **Do Bloco 2 em diante nada muda.** O agente de impressão continua obrigatório: a impressora segue no cabo USB do PC do caixa e a VPS segue num datacenter. Trocar de hospedagem não move um cabo.
+>
+> Já concluído: Passo 3 e o código do Passo 4.
+
 ## Princípio de ordenação
 
 Perda de dado vem antes de conveniência. Comprovante que não sai é um cliente irritado; histórico de vendas que evapora é a prestação de contas do evento inteiro. Por isso a persistência vem primeiro, mesmo sendo menos visível.
@@ -31,16 +39,9 @@ Duas perguntas sem resposta hoje. Nenhuma linha de código.
 
 ## Passo 2 [!] — Verificar o plano do Render
 
-**Fazer:** abrir o painel do serviço e anotar se é Free ou pago.
+**Resolvido de outro jeito: a hospedagem virou VPS.** A pergunta existia porque o disco do Render dependia de plano pago. Numa VPS o disco é real e a questão desaparece.
 
-Isso decide o Passo 4:
-
-| Plano | Caminho |
-|---|---|
-| Free | Disco persistente **não existe**. Vai ter que ser banco externo ou upgrade. |
-| Starter ou acima | Disco persistente resolve em 15 minutos, sem mudar código. |
-
-**Me traga essas duas respostas antes do Bloco 1.** O resto do plano depende delas.
+Fica o registro do que a pergunta protegia: sem disco persistente, a única saída honesta era trocar a persistência JSON por um banco gerenciado — 6 a 10 horas de reescrita. A escolha da VPS comprou isso por uma linha de configuração.
 
 ---
 
@@ -64,41 +65,29 @@ Isso decide o Passo 4:
 
 > Isso sozinho **não** resolve. O disco do container continua efêmero: reiniciar ainda apaga. Mas para de piorar a cada deploy, e é pré-requisito do Passo 4.
 
-## Passo 4 [!] — Persistir de verdade
+## Passo 4 — Persistir de verdade
 
-Escolha conforme o Passo 2:
+**Caminho executado: VPS com os dados fora da pasta do deploy.** O provisionamento está no `09_deploy_vps.md`; aqui fica só o princípio.
 
-### 4a. Disco persistente (Render Starter ou acima) — **recomendado**
+`/srv/lanchonete` é o código, descartável e sobrescrito a cada `git pull`. `/var/lib/lanchonete` são os dados, apontados por `LANCHONETE_DATA_DIR` e nunca tocados por atualização.
 
-**Fazer**
-- Criar um disco no serviço, ponto de montagem `/var/data`.
-- Variável de ambiente `LANCHONETE_DATA_DIR=/var/data`.
-- Copiar `menu.json`, `users.json` e `pix-config.json` para o disco no primeiro boot, se estiverem ausentes.
-
-**Esforço: ~30min. Zero mudança de código** — o `LANCHONETE_DATA_DIR` já existe no `store.js`.
+O `store.js` semeia um diretório externo no primeiro boot, copiando `menu.json`, `users.json` e `pix-config.json` — e **só o que estiver faltando**. Sobrescrever o que já existe traria de volta o problema que a separação veio resolver: o estoque mora dentro do `menu.json`, e voltaria ao valor do commit a cada atualização.
 
 **Verificar**
 - [ ] Criar pedido, reiniciar o serviço, o pedido continua lá
-- [ ] Fazer um deploy, o pedido continua lá
+- [ ] `git pull` + restart, o pedido continua lá
+- [ ] Estoque alterado pela tela sobrevive aos dois
 
-### 4b. Banco gerenciado (se ficar no Free)
-
-Trocar a persistência JSON por Postgres ou SQLite hospedado.
-
-**Esforço: 6 a 10h.** Reescreve `store.js`, todas as leituras e escritas, e a numeração sequencial de comanda precisa virar transação. É trabalho real, não configuração.
-
-### 4c. Não persistir na nuvem
-
-Aceitar que a nuvem é para testar e treinar, e rodar o backend local no dia do evento. **Esforço: zero, e resolve também a impressão** — mas encerra o Bloco 2 aqui.
-
-**Commit:** `feat: persistir dados em disco configuravel`
+**Commit:** `feat: persistir dados em disco configuravel` — feito.
 
 ## Passo 5 [C] — Checkpoint de dados
 
-- [ ] Deploy não apaga pedido
-- [ ] Reinício não apaga pedido
-- [ ] Cardápio e usuários sobrevivem aos dois
-- [ ] Backup manual dos JSON baixado e guardado fora do Render
+Detalhado no Passo 9 do `09_deploy_vps.md`.
+
+- [ ] `git pull` + restart não apaga pedido
+- [ ] Reboot da VPS não apaga pedido
+- [ ] Cardápio, estoque e usuários sobrevivem aos dois
+- [ ] Backup dos JSON baixado e guardado fora da VPS
 
 **Só passe daqui se os quatro estiverem verdes.** Impressão em cima de dado que some é esforço jogado fora.
 
@@ -110,9 +99,9 @@ Executa `07_agente_impressao_spec.md` na ordem de lá. Resumo da sequência:
 
 ## Passo 6 [R] — Spike do canal (~40min)
 
-Agente conecta no Render, recebe bytes, sai papel. **É o passo que pode matar o plano**: se o Render derrubar websocket ocioso, a abordagem vira long-polling. Descobrir isso agora custa 40 minutos; descobrir na quinta hora custa a tarde.
+Agente conecta na VPS, recebe bytes, sai papel.
 
-**Gate:** se o spike falhar dos dois jeitos, pare e reavalie o Bloco 2 inteiro contra a opção 4c.
+**A VPS rebaixou este risco.** Ele era "o Render pode derrubar websocket ocioso e não há o que fazer". Agora o que derruba conexão parada é o `proxy_read_timeout` do seu nginx, e o `09_deploy_vps.md` já sobe com 3600s. Continua valendo rodar o spike antes das outras cinco horas — só não é mais um gate que pode matar o desenho.
 
 ## Passo 7 — Autenticação por token (Etapa 2 da spec 07)
 
@@ -121,6 +110,8 @@ Antes de qualquer coisa funcionar bonito. O servidor é público; sem token, qua
 ## Passo 8 — Transporte selecionável (Etapa 3)
 
 Windows local usa spooler, nuvem usa agente. O mesmo código serve os dois.
+
+**Correção da spec 07:** a Etapa 3 escolhe o transporte por `process.platform === 'win32'`. A regra funciona na VPS Linux por acidente, não por desenho — num host Windows sem impressora ela mandaria os comprovantes para o spooler da máquina errada, em silêncio. A escolha deve ser configuração explícita (`spooler`, `agente` ou automático), não dedução de plataforma.
 
 ## Passo 9 — Fila com ack, TTL e dedup (Etapas 4 e 5)
 
@@ -172,19 +163,20 @@ Uma folha impressa, colada no PC do caixa:
 
 | Bloco | Passos | Entrega | Acumulado |
 |---|---|---|---|
-| 0 | 1-2 | Diagnóstico e decisão | ~30min |
-| 1 | 3-5 [C] | **Dados param de sumir** | ~1h30 (4a) / ~11h (4b) |
-| 2 | 6-10 [C] | **Impressão pela nuvem** | +4h |
+| 0 | 1-2 | Diagnóstico e decisão | feito |
+| 1 | 3-4 | Código da persistência | feito |
+| 1 | 09_deploy_vps | **Provisionar a VPS do zero** | ~2h |
+| 1 | 5 [C] | **Dados param de sumir** | +15min |
+| 2 | 6-10 [C] | **Impressão pela VPS** | +4h |
 | 2 | 11-12 | Diagnóstico e empacotamento | +2h |
 | 3 | 13-14 | Prontidão para o evento | +2h |
 
-Total pelo caminho 4a: **~9h30**. Pelo caminho 4b: **~19h**.
+Total a partir daqui: **~10h**.
+
+A VPS acrescentou ~2h de provisionamento que o Render fazia calado, e devolveu isso em risco: o websocket do agente deixou de depender de decisão de plataforma.
 
 ## Se o tempo apertar
 
-A sequência tem duas saídas honestas:
+A saída honesta que sobrou é **parar depois do Passo 5**: dados seguros na VPS e o backend local no PC do caixa no dia do evento, onde a impressão funciona pelo spooler sem agente nenhum.
 
-1. **Parar no Passo 5.** Dados seguros na nuvem, impressão só no PC local no dia do evento. Custa ~1h30 e resolve o risco maior.
-2. **Passo 4c direto.** Nuvem para treinar, local no dia. Custo zero, e a impressão funciona porque o backend está na mesma máquina da impressora.
-
-A opção 2 é a que eu escolheria se o evento fosse semana que vem.
+Isso custa as ~2h de provisionamento e resolve o risco maior. As ~6h do agente ficam para depois do evento — ou para antes dele, se a agenda permitir.
