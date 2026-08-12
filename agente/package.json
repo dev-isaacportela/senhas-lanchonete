@@ -1,0 +1,14 @@
+{
+  "name": "lanchonete-agente",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agente de impressao local: recebe bytes ESC/POS do servidor e escreve no spooler do Windows",
+  "main": "spike.js",
+  "scripts": {
+    "spike": "node spike.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "socket.io-client": "^4.7.5"
+  }
+}

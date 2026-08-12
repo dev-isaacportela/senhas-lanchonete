@@ -15,6 +15,26 @@ const { execFile } = require('child_process');
 const PS_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'raw-print.ps1');
 const TIMEOUT_MS = 20000;
 
+/*
+ * A impressao depende do spooler do Windows, entao so existe quando o
+ * backend roda na mesma maquina Windows em que a impressora esta ligada.
+ * Num host Linux (Render, Docker) nao ha o que tentar: melhor dizer isso
+ * de uma vez do que estourar 500 ou enfileirar jobs condenados.
+ */
+const PLATAFORMA_SUPORTADA = process.platform === 'win32';
+
+function erroPlataforma() {
+  const erro = new Error('Impressão disponível apenas quando o servidor roda no Windows.');
+  erro.motivo = 'plataforma_nao_suportada';
+  erro.mensagem = 'Este servidor não é Windows, então não alcança a impressora térmica. '
+    + 'A impressão só funciona com o backend rodando no PC em que a impressora está ligada.';
+  return erro;
+}
+
+function disponivel() {
+  return PLATAFORMA_SUPORTADA;
+}
+
 // Traduz a falha crua num motivo que o caixa consiga agir em cima.
 function classificarErro(mensagem = '') {
   const texto = String(mensagem).toLowerCase();
@@ -76,6 +96,8 @@ function executarPowerShell(args) {
 
 // Lista as impressoras instaladas, para montar o seletor da tela de config.
 async function listarImpressoras() {
+  if (!PLATAFORMA_SUPORTADA) throw erroPlataforma();
+
   const saida = await executarPowerShell([
     '-Command',
     'Get-Printer | Select-Object -ExpandProperty Name'
@@ -89,6 +111,8 @@ async function listarImpressoras() {
 
 // Envia bytes crus. Resolve em sucesso, rejeita com { motivo, mensagem }.
 async function imprimirRaw(nomeImpressora, buffer, nomeDocumento = 'Comprovante') {
+  if (!PLATAFORMA_SUPORTADA) throw erroPlataforma();
+
   if (!nomeImpressora) {
     const erro = new Error('Nenhuma impressora configurada.');
     erro.motivo = 'sem_impressora';
@@ -113,6 +137,8 @@ async function imprimirRaw(nomeImpressora, buffer, nomeDocumento = 'Comprovante'
 }
 
 module.exports = {
+  disponivel,
+  PLATAFORMA_SUPORTADA,
   listarImpressoras,
   imprimirRaw,
   classificarErro

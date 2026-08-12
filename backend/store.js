@@ -13,10 +13,21 @@ const fs = require('fs');
 const path = require('path');
 
 // LANCHONETE_DATA_DIR permite apontar o servidor para uma copia dos dados
-// durante testes, sem risco de mexer nos JSON de producao.
+// durante testes, e e o que leva a producao para o disco persistente do Render
+// (/var/data), fora do container que e recriado a cada deploy.
 const DATA_DIR = process.env.LANCHONETE_DATA_DIR
   ? path.resolve(process.env.LANCHONETE_DATA_DIR)
   : path.join(__dirname, 'data');
+
+// A pasta versionada do repositorio. Quando DATA_DIR aponta para outro lugar,
+// ela deixa de ser a copia viva e vira so a semente do primeiro boot.
+const SEED_DIR = path.join(__dirname, 'data');
+
+// Configuracao, nao estado de operacao: existe no git e serve de ponto de
+// partida numa instalacao nova. orders.json e logs.json ficam de fora de
+// proposito — nascem vazios, pelo fallback do readJSON.
+const ARQUIVOS_SEMENTE = ['menu.json', 'users.json', 'pix-config.json'];
+
 const ORDERS_FILE = path.join(DATA_DIR, 'orders.json');
 const MENU_FILE = path.join(DATA_DIR, 'menu.json');
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
@@ -27,6 +38,35 @@ const PRINTER_CONFIG_FILE = path.join(DATA_DIR, 'printer-config.json');
 if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
+
+/*
+ * Semeia um DATA_DIR externo no primeiro boot.
+ *
+ * Um disco persistente nasce vazio: sem isso o servidor subiria sem cardapio
+ * e sem usuarios, e ninguem conseguiria nem entrar. So copia o que esta
+ * faltando — o arquivo que ja existe no disco e a copia viva da operacao e
+ * nunca pode ser sobrescrito pelo estado do commit, que e exatamente o
+ * problema que o disco veio resolver.
+ */
+function semearDadosIniciais() {
+  if (DATA_DIR === path.resolve(SEED_DIR)) return;
+
+  for (const nome of ARQUIVOS_SEMENTE) {
+    const destino = path.join(DATA_DIR, nome);
+    const origem = path.join(SEED_DIR, nome);
+
+    if (fs.existsSync(destino) || !fs.existsSync(origem)) continue;
+
+    try {
+      fs.copyFileSync(origem, destino);
+      console.log(`[store] semente copiada para o disco: ${nome}`);
+    } catch (err) {
+      console.error(`[store] falha ao copiar a semente ${nome}:`, err);
+    }
+  }
+}
+
+semearDadosIniciais();
 
 function readJSON(filePath, fallback = []) {
   try {
