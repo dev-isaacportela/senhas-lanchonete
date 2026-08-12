@@ -7,6 +7,7 @@ const path = require('path');
 
 const store = require('./store');
 const ordersService = require('./services/orders');
+const estoqueService = require('./services/estoque');
 
 const app = express();
 app.use(cors());
@@ -191,7 +192,8 @@ app.post('/api/orders', (req, res) => {
   if (!resultado.ok) {
     return res.status(resultado.status || 400).json({
       error: resultado.mensagem,
-      erro: resultado.erro
+      erro: resultado.erro,
+      itensIndisponiveis: resultado.itensIndisponiveis
     });
   }
 
@@ -310,11 +312,18 @@ app.get('/api/menu', (req, res) => {
 
 // 5. Adicionar/Editar produto no cardápio
 app.post('/api/menu/produto', (req, res) => {
-  const { id, categoriaId, nome, descricao, preco, disponivel } = req.body;
+  const { id, categoriaId, nome, descricao, preco, disponivel, controlaEstoque, estoque, estoqueMinimo } = req.body;
 
   if (!nome || !preco || !categoriaId) {
     return res.status(400).json({ error: 'Dados incompletos para o produto.' });
   }
+
+  // Campos de estoque so entram no merge quando vierem no payload. Sem isso,
+  // editar nome ou preco pelo Cardapio zeraria o estoque do produto.
+  const camposEstoque = {};
+  if (controlaEstoque !== undefined) camposEstoque.controlaEstoque = !!controlaEstoque;
+  if (estoque !== undefined) camposEstoque.estoque = Math.max(0, parseInt(estoque, 10) || 0);
+  if (estoqueMinimo !== undefined) camposEstoque.estoqueMinimo = Math.max(0, parseInt(estoqueMinimo, 10) || 0);
 
   let produtoAtualizado;
   const prodIndex = store.menu.produtos.findIndex(p => p.id === id);
@@ -326,18 +335,20 @@ app.post('/api/menu/produto', (req, res) => {
       nome: nome.trim(),
       descricao: (descricao || '').trim(),
       preco: parseFloat(preco),
-      disponivel: disponivel !== undefined ? disponivel : true
+      disponivel: disponivel !== undefined ? disponivel : true,
+      ...camposEstoque
     };
     produtoAtualizado = store.menu.produtos[prodIndex];
   } else {
-    produtoAtualizado = {
+    produtoAtualizado = store.normalizarProdutoEstoque({
       id: `prod-${Date.now()}`,
       categoriaId,
       nome: nome.trim(),
       descricao: (descricao || '').trim(),
       preco: parseFloat(preco),
-      disponivel: disponivel !== undefined ? disponivel : true
-    };
+      disponivel: disponivel !== undefined ? disponivel : true,
+      ...camposEstoque
+    }).produto;
     store.menu.produtos.push(produtoAtualizado);
   }
 
@@ -345,6 +356,51 @@ app.post('/api/menu/produto', (req, res) => {
   io.emit('cardapio_atualizado', store.menu);
 
   res.json({ status: 'success', produto: produtoAtualizado, menu: store.menu });
+});
+
+// 5.1 Ajuste manual de estoque (definir com { valor } ou repor com { delta })
+app.patch('/api/menu/produto/:id/estoque', (req, res) => {
+  const { id } = req.params;
+  const { valor, delta, operadorNome } = req.body;
+
+  const resultado = estoqueService.ajustar(id, { valor, delta });
+
+  if (!resultado.ok) {
+    const naoEncontrado = resultado.erro === 'produto_nao_encontrado';
+    return res.status(naoEncontrado ? 404 : 400).json({
+      error: naoEncontrado
+        ? 'Produto não encontrado.'
+        : 'Informe { valor } para definir ou { delta } para repor/abater.',
+      erro: resultado.erro
+    });
+  }
+
+  const operador = operadorNome ? String(operadorNome).trim() : 'Gerente';
+  const sinal = resultado.novo >= resultado.anterior ? '+' : '';
+  const variacao = resultado.novo - resultado.anterior;
+
+  store.registrarLog(
+    null,
+    null,
+    resultado.produto.nome,
+    operador,
+    'estoque_ajuste',
+    `Ajustou o estoque de '${resultado.produto.nome}': ${resultado.anterior} -> ${resultado.novo} (${sinal}${variacao})`
+  );
+
+  io.emit('cardapio_atualizado', store.menu);
+
+  res.json({
+    status: 'success',
+    produto: resultado.produto,
+    anterior: resultado.anterior,
+    novo: resultado.novo
+  });
+});
+
+// 5.2 Snapshot de estoque para telas que não usam socket
+app.get('/api/estoque', (req, res) => {
+  res.json(estoqueService.snapshot());
 });
 
 // 6. Excluir produto do cardápio
@@ -440,13 +496,21 @@ io.on('connection', (socket) => {
   // Transmit initial state immediately upon connection
   socket.emit('pedidos_iniciais', store.orders);
   socket.emit('cardapio_inicial', store.menu);
+  socket.emit('estoque_atualizado', estoqueService.snapshot());
 
   // Client triggers creation
   socket.on('criar_pedido', (pedidoData, callback) => {
-    const resultado = ordersService.criarPedido(pedidoData || {});
+    // socketId identifica de quem sao as reservas que viram venda
+    const resultado = ordersService.criarPedido({ ...(pedidoData || {}), socketId: socket.id });
 
     if (!resultado.ok) {
-      if (callback) callback({ error: resultado.mensagem, erro: resultado.erro });
+      if (callback) {
+        callback({
+          error: resultado.mensagem,
+          erro: resultado.erro,
+          itensIndisponiveis: resultado.itensIndisponiveis
+        });
+      }
       return;
     }
 
@@ -513,8 +577,33 @@ io.on('connection', (socket) => {
     if (callback) callback({ status: 'success', order });
   });
 
+  // ----------------------------------------------------
+  // ESTOQUE: reservas de carrinho
+  // ----------------------------------------------------
+
+  socket.on('reservar_item', ({ produtoId, quantidade } = {}, callback) => {
+    const resultado = estoqueService.reservar(produtoId, socket.id, quantidade ?? 1);
+    if (callback) callback(resultado);
+  });
+
+  socket.on('liberar_item', ({ produtoId, quantidade } = {}, callback) => {
+    const resultado = estoqueService.liberar(produtoId, socket.id, quantidade ?? 1);
+    if (callback) callback(resultado);
+  });
+
+  socket.on('liberar_carrinho', (_payload, callback) => {
+    const afetados = estoqueService.liberarTudo(socket.id);
+    if (callback) callback({ ok: true, produtosLiberados: afetados });
+  });
+
+  socket.on('solicitar_estoque', (_payload, callback) => {
+    if (callback) callback({ ok: true, estoque: estoqueService.snapshot() });
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket.io] Cliente desconectado: ${socket.id}`);
+    // Caixa que fecha o navegador devolve na hora o que estava segurando
+    estoqueService.liberarTudo(socket.id);
   });
 });
 
@@ -530,6 +619,9 @@ if (fs.existsSync(distPath)) {
     }
   });
 }
+
+// Varredura periódica de reservas de carrinho com TTL vencido
+estoqueService.iniciarVarredura();
 
 // Iniciar Servidor HTTP + WebSocket
 server.listen(PORT, '0.0.0.0', () => {

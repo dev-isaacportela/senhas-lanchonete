@@ -11,6 +11,7 @@
  */
 
 const store = require('../store');
+const estoque = require('./estoque');
 
 const STATUS_VALIDOS = ['pendente', 'em_preparo', 'pronto', 'entregue', 'entrega_parcial', 'cancelado'];
 
@@ -36,7 +37,8 @@ function criarPedido(payload = {}) {
     itens,
     formaPagamento,
     statusPagamento,
-    dataCobranca
+    dataCobranca,
+    socketId
   } = payload;
 
   if (!cliente || !String(cliente).trim()) {
@@ -53,8 +55,27 @@ function criarPedido(payload = {}) {
     return falha('telefone_obrigatorio', 'O telefone do cliente é obrigatório para a opção Pagar Depois.');
   }
 
+  // Baixa de estoque antes de persistir: tudo-ou-nada. Se faltar qualquer
+  // item, o pedido nao chega a ser criado e o caixa recebe a lista do que
+  // precisa remover do carrinho.
+  const baixa = estoque.confirmar(itens, socketId || null);
+  if (!baixa.ok) {
+    return falha(
+      'estoque_insuficiente',
+      'Alguns itens não têm estoque suficiente.',
+      409,
+      { itensIndisponiveis: baixa.itensIndisponiveis }
+    );
+  }
+
+  // Marca quais itens realmente baixaram estoque. E essa flag que impede
+  // devolucao dupla quando o pedido e cancelado mais de uma vez.
+  const itensDoPedido = itens.map(item =>
+    baixa.itensBaixados.includes(item.id) ? { ...item, estoqueBaixado: true } : item
+  );
+
   const numero = getNextOrderNumber();
-  const total = itens.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
+  const total = itensDoPedido.reduce((acc, item) => acc + (item.preco * item.quantidade), 0);
   const operadorNome = criadoPor ? String(criadoPor).trim() : 'Caixa';
   const stPagamento = statusPagamento || (isPagarDepois ? 'pendente_pagamento' : 'pago');
 
@@ -68,7 +89,7 @@ function criarPedido(payload = {}) {
     formaPagamento: formaPgto,
     statusPagamento: stPagamento,
     dataCobranca: isPagarDepois ? (dataCobranca || null) : null,
-    itens,
+    itens: itensDoPedido,
     total,
     status: 'pendente',
     criadoEm: new Date().toISOString(),
@@ -78,7 +99,7 @@ function criarPedido(payload = {}) {
   store.orders.unshift(newOrder);
   store.salvarPedidos();
 
-  const itensResumo = itens.map(i => `${i.quantidade}x ${i.nome} (R$ ${(i.preco * i.quantidade).toFixed(2)})`).join(', ');
+  const itensResumo = itensDoPedido.map(i => `${i.quantidade}x ${i.nome} (R$ ${(i.preco * i.quantidade).toFixed(2)})`).join(', ');
   const cobrancaText = isPagarDepois
     ? ` | PAGAR DEPOIS (Tel: ${String(telefoneCliente).trim()} | Cobrança: ${dataCobranca || 'Sem data'})`
     : ` | Forma: ${formaPgto.toUpperCase()}`;
@@ -90,8 +111,24 @@ function criarPedido(payload = {}) {
     operadorNome,
     'criacao',
     `Abriu o Pedido #${numero} para ${newOrder.cliente} | Itens: ${itensResumo}${cobrancaText} | Total: R$ ${total.toFixed(2)}`,
-    itens
+    itensDoPedido
   );
+
+  if (baixa.itensBaixados.length) {
+    const resumoBaixa = itensDoPedido
+      .filter(i => i.estoqueBaixado)
+      .map(i => `${i.nome} (-${i.quantidade})`)
+      .join(', ');
+
+    store.registrarLog(
+      newOrder.id,
+      newOrder.numero,
+      newOrder.cliente,
+      operadorNome,
+      'estoque_baixa',
+      `Baixa de estoque pelo Pedido #${numero}: ${resumoBaixa}`
+    );
+  }
 
   store.emitir('novo_pedido_criado', newOrder);
 
@@ -125,6 +162,19 @@ function alterarStatusPedido(id, status, operador) {
     order.itens = order.itens.map(i => ({ ...i, entregue: true }));
   }
 
+  // Cancelamento devolve o estoque baixado. A flag estoqueBaixado e limpa
+  // logo em seguida, entao cancelar duas vezes nao devolve em dobro.
+  let itensDevolvidos = [];
+  if (status === 'cancelado' && Array.isArray(order.itens)) {
+    itensDevolvidos = order.itens.filter(i => i.estoqueBaixado);
+    if (itensDevolvidos.length) {
+      estoque.devolver(itensDevolvidos);
+      order.itens = order.itens.map(i =>
+        i.estoqueBaixado ? { ...i, estoqueBaixado: false } : i
+      );
+    }
+  }
+
   order.atualizadoEm = new Date().toISOString();
   store.salvarPedidos();
 
@@ -154,6 +204,18 @@ function alterarStatusPedido(id, status, operador) {
     descLog,
     order.itens
   );
+
+  if (itensDevolvidos.length) {
+    const resumo = itensDevolvidos.map(i => `${i.nome} (+${i.quantidade})`).join(', ');
+    store.registrarLog(
+      order.id,
+      order.numero,
+      order.cliente,
+      operadorNome,
+      'estoque_devolucao',
+      `Devolucao de estoque pelo cancelamento do Pedido #${order.numero}: ${resumo}`
+    );
+  }
 
   store.emitir('status_pedido_atualizado', order);
 

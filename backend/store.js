@@ -47,6 +47,49 @@ function writeJSON(filePath, data) {
   }
 }
 
+/*
+ * Migracao implicita do schema de estoque.
+ *
+ * Todo produto ganha controlaEstoque/estoque/estoqueMinimo quando ausentes.
+ * Padrao é controle DESLIGADO, entao os produtos ja cadastrados continuam
+ * vendendo ilimitado ate o gerente ativar o controle item a item.
+ */
+function normalizarProdutoEstoque(produto) {
+  const normalizado = { ...produto };
+  let mudou = false;
+
+  if (typeof normalizado.controlaEstoque !== 'boolean') {
+    normalizado.controlaEstoque = false;
+    mudou = true;
+  }
+  if (typeof normalizado.estoque !== 'number' || Number.isNaN(normalizado.estoque)) {
+    normalizado.estoque = 0;
+    mudou = true;
+  }
+  if (typeof normalizado.estoqueMinimo !== 'number' || Number.isNaN(normalizado.estoqueMinimo)) {
+    normalizado.estoqueMinimo = 0;
+    mudou = true;
+  }
+
+  return { produto: normalizado, mudou };
+}
+
+function normalizarMenu(menu) {
+  const base = {
+    categorias: Array.isArray(menu && menu.categorias) ? menu.categorias : [],
+    produtos: Array.isArray(menu && menu.produtos) ? menu.produtos : []
+  };
+
+  let mudou = false;
+  base.produtos = base.produtos.map(p => {
+    const resultado = normalizarProdutoEstoque(p);
+    if (resultado.mudou) mudou = true;
+    return resultado.produto;
+  });
+
+  return { menu: base, mudou };
+}
+
 // Instancia do Socket.io, injetada pelo server.js logo apos criar o io.
 let io = null;
 
@@ -74,9 +117,11 @@ const store = {
 
   // Caches sincronizados com os arquivos JSON
   orders: readJSON(ORDERS_FILE, []),
-  menu: readJSON(MENU_FILE, { categorias: [], produtos: [] }),
+  menu: normalizarMenu(readJSON(MENU_FILE, { categorias: [], produtos: [] })).menu,
   users: readJSON(USERS_FILE, []),
   auditLogs: readJSON(LOGS_FILE, []),
+
+  normalizarProdutoEstoque,
 
   // Persistencia
   readJSON,
@@ -113,5 +158,12 @@ const store = {
     return newLog;
   }
 };
+
+// Persiste a migracao de estoque no primeiro boot, para que menu.json passe a
+// carregar os campos novos em vez de depender da normalizacao em memoria.
+if (normalizarMenu(readJSON(MENU_FILE, { categorias: [], produtos: [] })).mudou) {
+  store.salvarMenu();
+  console.log('[store] menu.json migrado com os campos de estoque.');
+}
 
 module.exports = store;
