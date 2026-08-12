@@ -186,7 +186,12 @@ app.post('/api/pix-config', (req, res) => {
 // ----------------------------------------------------
 
 app.get('/api/printer-config', (req, res) => {
-  res.json(printerService.carregarConfig());
+  res.json({
+    ...printerService.carregarConfig(),
+    // A tela precisa saber se este servidor alcança alguma impressora
+    plataformaSuportada: printerService.disponivel(),
+    plataforma: process.platform
+  });
 });
 
 app.post('/api/printer-config', (req, res) => {
@@ -199,11 +204,27 @@ app.post('/api/printer-config', (req, res) => {
   }
 });
 
-// Lista as impressoras instaladas no Windows, para montar o seletor
+/*
+ * Lista as impressoras instaladas no Windows, para montar o seletor.
+ *
+ * Servidor que não alcança o spooler (Linux, Docker, Render) não é erro do
+ * cliente nem falha do servidor: é uma capacidade que não existe ali. Por
+ * isso responde 200 com a lista vazia e o motivo, e a tela mostra o aviso.
+ */
 app.get('/api/printer/impressoras', async (req, res) => {
+  if (!printerService.disponivel()) {
+    return res.json({
+      status: 'success',
+      impressoras: [],
+      disponivel: false,
+      motivo: 'plataforma_nao_suportada',
+      mensagem: `Este servidor roda em ${process.platform}, não em Windows, então não alcança a impressora térmica.`
+    });
+  }
+
   try {
     const impressoras = await printerService.listarImpressoras();
-    res.json({ status: 'success', impressoras });
+    res.json({ status: 'success', impressoras, disponivel: true });
   } catch (err) {
     res.status(500).json({
       error: err.mensagem || 'Não foi possível listar as impressoras do Windows.',
@@ -228,10 +249,12 @@ app.post('/api/printer/teste', (req, res) => {
   const resultado = printerService.imprimirTeste({ configTemporaria: config || null, pedido });
 
   if (!resultado.enfileirado) {
+    const mensagens = {
+      sem_impressora: 'Selecione uma impressora antes de imprimir o teste.',
+      plataforma_nao_suportada: `Este servidor roda em ${process.platform}, não em Windows, então não alcança a impressora térmica.`
+    };
     return res.status(400).json({
-      error: resultado.motivo === 'sem_impressora'
-        ? 'Selecione uma impressora antes de imprimir o teste.'
-        : 'Não foi possível enfileirar o teste.',
+      error: mensagens[resultado.motivo] || 'Não foi possível enfileirar o teste.',
       motivo: resultado.motivo
     });
   }
@@ -272,7 +295,8 @@ function imprimirPedidoManual(req, res, { segundaVia }) {
   if (!resultado.enfileirado) {
     const mensagens = {
       sem_impressora: 'Nenhuma impressora configurada. Configure na aba Impressora.',
-      nenhuma_via_ativa: 'Nenhuma via selecionada para impressão.'
+      nenhuma_via_ativa: 'Nenhuma via selecionada para impressão.',
+      plataforma_nao_suportada: 'Este servidor não alcança a impressora térmica. A impressão precisa do backend rodando no PC Windows em que a impressora está ligada.'
     };
     return res.status(400).json({
       error: mensagens[resultado.motivo] || 'Não foi possível imprimir.',

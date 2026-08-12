@@ -79,6 +79,11 @@ if (!fs.existsSync(store.PRINTER_CONFIG_FILE)) {
 function imprimirPedido(pedido, opcoes = {}) {
   const config = carregarConfig();
 
+  // Num host que nao alcanca o spooler, enfileirar so produziria um aviso
+  // de falha em cada venda. Melhor nem tentar.
+  if (!driver.disponivel()) {
+    return { enfileirado: false, motivo: 'plataforma_nao_suportada' };
+  }
   if (!config.habilitado && !opcoes.ignorarHabilitado) {
     return { enfileirado: false, motivo: 'impressao_desabilitada' };
   }
@@ -131,6 +136,9 @@ function imprimirTeste({ configTemporaria = null, pedido = null } = {}) {
     ? { ...carregarConfig(), ...configTemporaria }
     : carregarConfig();
 
+  if (!driver.disponivel()) {
+    return { enfileirado: false, motivo: 'plataforma_nao_suportada' };
+  }
   if (!config.nomeImpressora) {
     return { enfileirado: false, motivo: 'sem_impressora' };
   }
@@ -153,6 +161,7 @@ function imprimirTeste({ configTemporaria = null, pedido = null } = {}) {
 
 module.exports = {
   CONFIG_PADRAO,
+  disponivel: driver.disponivel,
   carregarConfig,
   salvarConfig,
   imprimirPedido,

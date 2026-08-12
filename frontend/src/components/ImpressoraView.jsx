@@ -16,6 +16,9 @@ export default function ImpressoraView({ operador }) {
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState(null);
   const [fila, setFila] = useState({ pendentes: 0, historico: [] });
+  // Servidor que não roda em Windows não alcança o spooler — a tela inteira
+  // muda de tom nesse caso, em vez de oferecer botões que nunca funcionam.
+  const [indisponivel, setIndisponivel] = useState(null);
 
   const temPermissao = operador && operador.role === 'master';
 
@@ -31,7 +34,13 @@ export default function ImpressoraView({ operador }) {
     fetch('/api/printer/impressoras')
       .then(res => res.json())
       .then(data => {
+        if (data.disponivel === false) {
+          setIndisponivel(data.mensagem || 'Este servidor não alcança a impressora térmica.');
+          setImpressoras([]);
+          return;
+        }
         if (data.impressoras) {
+          setIndisponivel(null);
           setImpressoras(data.impressoras);
         } else {
           setAviso({ tipo: 'erro', texto: data.error || 'Não foi possível listar as impressoras.' });
@@ -209,6 +218,24 @@ export default function ImpressoraView({ operador }) {
           font-size: 0.88rem;
         }
 
+        .aviso-plataforma {
+          background: rgba(230, 134, 25, 0.12);
+          border: 1px solid var(--status-preparo);
+          border-radius: var(--radius-md);
+          padding: 1rem 1.15rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.55rem;
+        }
+
+        .aviso-plataforma code {
+          background: var(--app-canvas);
+          border: 1px solid var(--app-border);
+          border-radius: 4px;
+          padding: 1px 5px;
+          font-size: 0.82rem;
+        }
+
         .aviso-ok { background: rgba(22, 163, 74, 0.14); border: 1px solid var(--status-pronto); color: var(--status-pronto); }
         .aviso-erro { background: rgba(250, 15, 0, 0.13); border: 1px solid var(--primary); color: var(--primary); }
 
@@ -232,6 +259,31 @@ export default function ImpressoraView({ operador }) {
         <Printer size={26} color="var(--primary)" />
         <span>Impressora Térmica</span>
       </div>
+
+      {/* Servidor sem acesso a impressora: explica em vez de só falhar */}
+      {indisponivel && (
+        <div className="aviso-plataforma">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 800, color: 'var(--status-preparo)' }}>
+            <AlertTriangle size={19} />
+            <span>Impressão indisponível neste servidor</span>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--app-ink)' }}>
+            {indisponivel}
+          </p>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--app-ink-muted)' }}>
+            A impressora térmica é ligada por USB, então quem imprime tem que ser o backend
+            rodando <strong>no próprio PC em que ela está conectada</strong>. Um servidor na nuvem
+            não alcança esse cabo.
+          </p>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--app-ink-muted)' }}>
+            No dia do evento, rode <code>npm start</code> na pasta <code>backend</code> desse PC e
+            acesse o sistema pelo IP dele na rede Wi-Fi. Aí esta tela funciona normalmente.
+          </p>
+          <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--app-ink-muted)' }}>
+            Todo o resto — pedidos, cozinha, TV, estoque — continua funcionando aqui.
+          </p>
+        </div>
+      )}
 
       {aviso && (
         <div className={`aviso-box ${aviso.tipo === 'ok' ? 'aviso-ok' : 'aviso-erro'}`}>
@@ -433,7 +485,12 @@ export default function ImpressoraView({ operador }) {
         <button className="btn btn-primary" onClick={salvar} disabled={salvando}>
           <Check size={18} /> {salvando ? 'Salvando...' : 'Salvar configuração'}
         </button>
-        <button className="btn btn-secondary" onClick={imprimirTeste}>
+        <button
+          className="btn btn-secondary"
+          onClick={imprimirTeste}
+          disabled={!!indisponivel}
+          title={indisponivel ? 'Este servidor não alcança a impressora' : 'Imprime a régua de colunas e a amostra de acentuação'}
+        >
           <Printer size={18} /> Imprimir teste
         </button>
         <button className="btn btn-secondary" onClick={carregarFila}>

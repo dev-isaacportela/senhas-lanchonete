@@ -126,6 +126,26 @@ Reposição rápida fica na coluna *Estoque* do Cardápio (`-1` / `+1` / `Repor`
 
 O comprovante é gerado em **ESC/POS** e entregue ao spooler do Windows em modo **RAW**, sem passar pelo driver gráfico — é isso que preserva corte de papel, negrito e fonte dupla. Não há dependência nativa nem compilação.
 
+### ⚠️ A impressão exige o backend rodando no PC da impressora
+
+A impressora é **USB**. Quem imprime é o processo Node que enxerga o spooler do Windows daquela máquina — então o backend precisa estar rodando **no próprio PC em que a impressora está ligada**.
+
+Num deploy na nuvem (Render, Railway, Docker Linux) isso não existe: não há spooler nem `Get-Printer`, e nenhum servidor remoto alcança um cabo USB na sua mesa. O sistema detecta isso e degrada sem quebrar:
+
+- A aba Impressora mostra um aviso explicando, em vez de erro.
+- O botão de imprimir some do Caixa.
+- Nenhum job é enfileirado, então não há aviso de falha a cada venda.
+- **Pedidos, cozinha, TV, vendas e estoque continuam funcionando normalmente.**
+
+Ou seja: dá para usar a nuvem no dia a dia e, no dia do evento, rodar o backend no PC do caixa para ter a impressão:
+
+```bash
+cd backend
+npm start
+```
+
+Os outros dispositivos acessam pelo IP desse PC na rede Wi-Fi (`http://192.168.x.x:3001`).
+
 ### Configurar
 
 1. Instale a impressora no Windows normalmente e anote o nome.

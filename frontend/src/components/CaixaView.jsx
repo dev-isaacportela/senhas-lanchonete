@@ -64,6 +64,7 @@ export default function CaixaView({
   // depois de enviar. Fica na tela até o próximo pedido ou até ser fechado.
   const [ultimoPedido, setUltimoPedido] = useState(null);
   const [statusImpressao, setStatusImpressao] = useState(null);
+  const [impressaoDisponivel, setImpressaoDisponivel] = useState(false);
   const imprimindoRef = useRef(false);
   const [mobileTab, setMobileTab] = useState('cardapio'); // cardapio | carrinho
 
@@ -86,6 +87,13 @@ export default function CaixaView({
       .then(res => res.json())
       .then(dados => setPixConfig(dados))
       .catch(err => console.error('Erro ao carregar chave PIX:', err));
+
+    // Servidor na nuvem não alcança a impressora USB local. Sem isso, o
+    // botão de imprimir apareceria só para falhar em todo clique.
+    fetch('/api/printer-config')
+      .then(res => res.json())
+      .then(cfg => setImpressaoDisponivel(cfg.plataformaSuportada !== false))
+      .catch(() => setImpressaoDisponivel(false));
   }, []);
 
   // Normalização segura de Produtos e Categorias
@@ -937,15 +945,17 @@ export default function CaixaView({
                 </div>
               </div>
 
-              <button
-                className="btn btn-primary"
-                style={{ padding: '0.55rem 0.9rem', fontSize: '0.9rem' }}
-                onClick={imprimirComprovante}
-                disabled={statusImpressao?.tipo === 'enviando'}
-              >
-                <Printer size={17} />
-                {statusImpressao?.tipo === 'enviando' ? 'Enviando...' : 'Imprimir comprovante'}
-              </button>
+              {impressaoDisponivel && (
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '0.55rem 0.9rem', fontSize: '0.9rem' }}
+                  onClick={imprimirComprovante}
+                  disabled={statusImpressao?.tipo === 'enviando'}
+                >
+                  <Printer size={17} />
+                  {statusImpressao?.tipo === 'enviando' ? 'Enviando...' : 'Imprimir comprovante'}
+                </button>
+              )}
 
               <button
                 className="btn btn-secondary"
