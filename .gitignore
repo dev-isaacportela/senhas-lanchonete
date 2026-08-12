@@ -1,0 +1,18 @@
+# Dados de operacao — nascem vazios e vivem so no disco do servidor.
+#
+# Versionar isso faz o deploy sobrescrever a producao com o estado do commit:
+# o Render clona o repositorio a cada deploy, entao o container nasce com os
+# pedidos do git, nao com os pedidos reais. Nao e so efemeridade, e reversao.
+backend/data/orders.json
+backend/data/logs.json
+
+# menu.json, users.json e pix-config.json continuam versionados de proposito:
+# sao configuracao, e servem de semente numa instalacao nova. Quando o servidor
+# roda com LANCHONETE_DATA_DIR apontando para um disco persistente, a copia viva
+# fica no disco e estes arquivos so alimentam o primeiro boot.
+
+# Segredos — o token do agente de impressao mora aqui, nunca no repositorio.
+.env
+.env.local
+*.env
+!.env.example
