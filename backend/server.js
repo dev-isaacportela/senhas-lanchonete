@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const store = require('./store');
 const ordersService = require('./services/orders');
@@ -264,6 +265,127 @@ app.post('/api/printer/teste', (req, res) => {
 
 app.get('/api/printer/fila', (req, res) => {
   res.json(printerService.statusFila());
+});
+
+/* ----------------------------------------------------------------------
+ * SPIKE do agente de impressao — Etapa 1 do specs/07_agente_impressao_spec.md
+ *
+ * Codigo deliberadamente temporario. Existe para responder uma pergunta so:
+ * um processo rodando no PC do caixa recebe bytes da VPS e sai papel?
+ *
+ * O registro de verdade nasce em services/printer/agentes.js na Etapa 2,
+ * junto com a fila, o ack e o TTL. Nada aqui deve sobreviver aquela etapa.
+ * ---------------------------------------------------------------------- */
+
+const AGENTE_TOKEN = process.env.AGENTE_TOKEN || '';
+
+// Um agente por vez, sem persistencia: some quando o processo reinicia.
+let agenteSpike = null;
+
+/*
+ * Comparacao em tempo constante. O timingSafeEqual exige buffers do mesmo
+ * tamanho e estourar antes por tamanho diferente ja entregaria o tamanho do
+ * token, entao os dois lados viram hash de 32 bytes primeiro.
+ */
+function tokenConfere(recebido) {
+  if (!AGENTE_TOKEN || typeof recebido !== 'string' || !recebido) return false;
+
+  const esperado = crypto.createHash('sha256').update(AGENTE_TOKEN).digest();
+  const oferecido = crypto.createHash('sha256').update(recebido).digest();
+
+  return crypto.timingSafeEqual(esperado, oferecido);
+}
+
+function agenteConectado() {
+  if (!agenteSpike) return null;
+  const socket = io.sockets.sockets.get(agenteSpike.socketId);
+  if (!socket) {
+    agenteSpike = null;
+    return null;
+  }
+  return socket;
+}
+
+/*
+ * Dispara uma pagina de teste pelo agente, sem passar pela fila local: num
+ * host Linux o driver do spooler nem se declara disponivel, e o ponto do
+ * spike e justamente contornar isso pelo socket.
+ */
+app.get('/api/printer/spike-agente', (req, res) => {
+  if (!AGENTE_TOKEN) {
+    return res.status(503).json({
+      error: 'AGENTE_TOKEN nao esta definido no servidor.',
+      motivo: 'sem_token'
+    });
+  }
+
+  const socket = agenteConectado();
+  if (!socket) {
+    return res.status(503).json({
+      error: 'Nenhum agente de impressao conectado.',
+      motivo: 'sem_agente'
+    });
+  }
+
+  const config = printerService.carregarConfig();
+  const nomeImpressora = req.query.impressora
+    || config.nomeImpressora
+    || agenteSpike.impressoras[0];
+
+  if (!nomeImpressora) {
+    return res.status(400).json({
+      error: 'Nenhuma impressora informada, configurada, nem reportada pelo agente.',
+      motivo: 'sem_impressora'
+    });
+  }
+
+  const buffer = printerService.escpos.paginaTeste(config);
+  const jobId = `spike-${Date.now()}`;
+
+  console.log(`[agente] enviando ${jobId} para ${agenteSpike.hostname} (${nomeImpressora})`);
+
+  socket.timeout(30000).emit('agente_imprimir', {
+    jobId,
+    nomeImpressora,
+    descricao: 'Spike do agente',
+    bufferBase64: buffer.toString('base64')
+  }, (erroTimeout, resposta) => {
+    if (erroTimeout) {
+      console.warn(`[agente] ${jobId} sem ack em 30s`);
+      return res.status(504).json({
+        error: 'O agente nao confirmou a impressao em 30 segundos.',
+        motivo: 'sem_ack',
+        jobId
+      });
+    }
+
+    if (!resposta || !resposta.ok) {
+      console.warn(`[agente] ${jobId} falhou: ${resposta && resposta.motivo}`);
+      return res.status(502).json({
+        error: (resposta && resposta.erro) || 'O agente recusou o trabalho.',
+        motivo: (resposta && resposta.motivo) || 'erro_desconhecido',
+        jobId
+      });
+    }
+
+    console.log(`[agente] ${jobId} impresso (${resposta.bytes} bytes)`);
+    res.json({ status: 'success', jobId, agente: agenteSpike.hostname, ...resposta });
+  });
+});
+
+// Diagnostico do spike: quem esta conectado, desde quando, com quais impressoras.
+app.get('/api/printer/spike-agente/status', (req, res) => {
+  res.json({
+    tokenDefinido: !!AGENTE_TOKEN,
+    conectado: !!agenteConectado(),
+    agente: agenteSpike
+      ? {
+        hostname: agenteSpike.hostname,
+        desde: agenteSpike.desde,
+        impressoras: agenteSpike.impressoras
+      }
+      : null
+  });
 });
 
 /*
@@ -755,10 +877,48 @@ io.on('connection', (socket) => {
     if (callback) callback({ ok: true, estoque: estoqueService.snapshot() });
   });
 
+  /*
+   * Registro do agente de impressao (SPIKE, Etapa 1 da spec 07).
+   *
+   * A recusa nao diz se o token existe, so que nao serve — o servidor e
+   * publico, e a diferenca entre "token errado" e "nao ha token" e informacao
+   * de graca para quem esta tentando adivinhar.
+   */
+  socket.on('agente_registrar', (payload = {}, callback) => {
+    if (!tokenConfere(payload.token)) {
+      console.warn(`[agente] registro recusado para ${socket.id}`);
+      if (callback) callback({ ok: false, erro: 'token_invalido' });
+      return;
+    }
+
+    // Dois agentes imprimiriam em duplicidade. O mais recente assume.
+    const anterior = agenteConectado();
+    if (anterior && anterior.id !== socket.id) {
+      console.warn(`[agente] ${agenteSpike.hostname} substituido por um novo registro`);
+      anterior.disconnect(true);
+    }
+
+    socket.join('agentes');
+    agenteSpike = {
+      socketId: socket.id,
+      hostname: String(payload.hostname || 'desconhecido'),
+      impressoras: Array.isArray(payload.impressoras) ? payload.impressoras : [],
+      desde: new Date().toISOString()
+    };
+
+    console.log(`[agente] conectado: ${agenteSpike.hostname} (${agenteSpike.impressoras.length} impressoras)`);
+    if (callback) callback({ ok: true });
+  });
+
   socket.on('disconnect', () => {
     console.log(`[Socket.io] Cliente desconectado: ${socket.id}`);
     // Caixa que fecha o navegador devolve na hora o que estava segurando
     estoqueService.liberarTudo(socket.id);
+
+    if (agenteSpike && agenteSpike.socketId === socket.id) {
+      console.warn(`[agente] desconectado: ${agenteSpike.hostname}`);
+      agenteSpike = null;
+    }
   });
 });
 

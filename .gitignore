@@ -11,6 +11,10 @@ backend/data/logs.json
 # roda com LANCHONETE_DATA_DIR apontando para um disco persistente, a copia viva
 # fica no disco e estes arquivos so alimentam o primeiro boot.
 
+# O agente e instalado no PC do caixa com npm install; suas dependencias nao
+# precisam viajar no repositorio.
+agente/node_modules/
+
 # Segredos — o token do agente de impressao mora aqui, nunca no repositorio.
 .env
 .env.local
