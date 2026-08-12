@@ -1,0 +1,49 @@
+; lanchonete.service — sobe o backend no boot e reergue em caso de queda.
+;
+; Instalar em /etc/systemd/system/lanchonete.service
+; Depois: systemctl daemon-reload && systemctl enable --now lanchonete
+
+[Unit]
+Description=Festa do Morango - backend de pedidos
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=lanchonete
+Group=lanchonete
+WorkingDirectory=/srv/lanchonete
+
+; Escuta so no loopback: quem conversa com a internet e o nginx.
+Environment=HOST=127.0.0.1
+Environment=PORT=3001
+
+; Os dados vivem FORA da pasta do deploy. E o que faz um git pull nao
+; alcancar os pedidos, e o que separa codigo de operacao.
+Environment=LANCHONETE_DATA_DIR=/var/lib/lanchonete
+
+; Na Etapa 2 do specs/07_agente_impressao_spec.md, o token do agente entra
+; aqui. Nunca no repositorio.
+; Environment=AGENTE_TOKEN=troque-este-valor
+
+ExecStart=/usr/bin/node backend/server.js
+
+; Sem isto, uma excecao nao tratada as 20h de sabado deixa a lanchonete sem
+; sistema ate alguem perceber e entrar por SSH.
+Restart=always
+RestartSec=3
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=lanchonete
+
+; Endurecimento basico. ReadWritePaths precisa cobrir o DATA_DIR, senao o
+; servidor sobe e falha na primeira gravacao de pedido.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/var/lib/lanchonete
+
+[Install]
+WantedBy=multi-user.target

@@ -764,6 +764,11 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3001;
 
+// Padrao 0.0.0.0 porque em rede local os celulares precisam alcancar o PC do
+// caixa. Atras de um proxy reverso na VPS, HOST=127.0.0.1 fecha a porta para a
+// internet e deixa so o nginx falando com o Node.
+const HOST = process.env.HOST || '0.0.0.0';
+
 // Servir frontend compilado em produção (dist)
 const distPath = path.join(__dirname, '../frontend/dist');
 if (fs.existsSync(distPath)) {
@@ -785,7 +790,7 @@ printerService.aoEvento((evento, payload) => {
 });
 
 // Iniciar Servidor HTTP + WebSocket
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Servidor da Festa do Morango rodando na porta ${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`🚀 Servidor da Festa do Morango rodando em ${HOST}:${PORT}`);
   console.log(`👉 Acesse localmente: http://localhost:${PORT}`);
 });
