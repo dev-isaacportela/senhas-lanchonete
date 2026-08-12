@@ -101,7 +101,9 @@ Executa `07_agente_impressao_spec.md` na ordem de lá. Resumo da sequência:
 
 Agente conecta na VPS, recebe bytes, sai papel.
 
-**A VPS rebaixou este risco.** Ele era "o Render pode derrubar websocket ocioso e não há o que fazer". Agora o que derruba conexão parada é o `proxy_read_timeout` do seu nginx, e o `09_deploy_vps.md` já sobe com 3600s. Continua valendo rodar o spike antes das outras cinco horas — só não é mais um gate que pode matar o desenho.
+**Este risco era menor do que parecia.** O Socket.io manda ping a cada 25s, então a conexão do agente não fica ociosa perto de nenhum timeout de proxy — basta manter o `proxy_read_timeout` acima de 45s, e o `09_deploy_vps.md` sobe com 3600s.
+
+O que ameaça o agente é a plataforma **parar o processo** por inatividade, que era o spin-down do Render Free. Numa VPS isso não existe. Continua valendo rodar o spike antes das outras cinco horas, mas ele deixou de ser um gate que pode matar o desenho.
 
 ## Passo 7 — Autenticação por token (Etapa 2 da spec 07)
 

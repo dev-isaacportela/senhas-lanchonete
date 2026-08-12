@@ -127,7 +127,7 @@ sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d seu.dominio.com.br
 ```
 
-O `proxy_read_timeout 3600s` do arquivo não é preciosismo: é o que impede o nginx de derrubar a conexão ociosa do agente de impressão a cada minuto parado.
+O `proxy_read_timeout 3600s` do arquivo é margem, não salvação: o Socket.io manda ping a cada 25s, então a conexão do agente não fica ociosa perto dos 60s padrão do nginx. A regra é só manter o timeout acima de `pingInterval + pingTimeout` (45s). O que derruba o agente de verdade é a plataforma parar o processo por inatividade — foi isso o Render Free, não timeout de socket.
 
 **Verificar**
 
