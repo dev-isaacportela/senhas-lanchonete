@@ -243,8 +243,15 @@ app.get('/api/printer/fila', (req, res) => {
   res.json(printerService.statusFila());
 });
 
-// Reimpressão manual de um pedido já existente
-app.post('/api/orders/:id/reimprimir', (req, res) => {
+/*
+ * Impressão manual de um pedido existente.
+ *
+ * `segundaVia` distingue os dois usos: o caixa mandando o comprovante do
+ * pedido que acabou de fechar (primeira via, sem marca) e a reimpressão do
+ * histórico (marcada como 2a VIA). Os dois usam o mesmo layout e a mesma
+ * fila, então nunca divergem.
+ */
+function imprimirPedidoManual(req, res, { segundaVia }) {
   const { id } = req.params;
   const { vias, operadorNome } = req.body || {};
 
@@ -257,7 +264,7 @@ app.post('/api/orders/:id/reimprimir', (req, res) => {
   // emissão pontual de um comprovante.
   const resultado = printerService.imprimirPedido(pedido, {
     vias,
-    segundaVia: true,
+    segundaVia,
     copias: 1,
     ignorarHabilitado: true
   });
@@ -265,10 +272,10 @@ app.post('/api/orders/:id/reimprimir', (req, res) => {
   if (!resultado.enfileirado) {
     const mensagens = {
       sem_impressora: 'Nenhuma impressora configurada. Configure na aba Impressora.',
-      nenhuma_via_ativa: 'Nenhuma via selecionada para reimpressão.'
+      nenhuma_via_ativa: 'Nenhuma via selecionada para impressão.'
     };
     return res.status(400).json({
-      error: mensagens[resultado.motivo] || 'Não foi possível reimprimir.',
+      error: mensagens[resultado.motivo] || 'Não foi possível imprimir.',
       motivo: resultado.motivo
     });
   }
@@ -285,11 +292,23 @@ app.post('/api/orders/:id/reimprimir', (req, res) => {
     pedido.numero,
     pedido.cliente,
     operador,
-    'reimpressao',
-    `Reimprimiu o Pedido #${pedido.numero} (${pedido.cliente}) | Vias: ${viasTexto || 'cliente'}`
+    segundaVia ? 'reimpressao' : 'impressao',
+    segundaVia
+      ? `Reimprimiu o Pedido #${pedido.numero} (${pedido.cliente}) | Vias: ${viasTexto || 'cliente'}`
+      : `Imprimiu o comprovante do Pedido #${pedido.numero} (${pedido.cliente})`
   );
 
   res.json({ status: 'success', jobs: resultado.jobs });
+}
+
+// Comprovante do cliente, primeira via, disparado pelo botão do Caixa
+app.post('/api/orders/:id/imprimir', (req, res) => {
+  imprimirPedidoManual(req, res, { segundaVia: false });
+});
+
+// Reimpressão manual a partir do histórico de Vendas
+app.post('/api/orders/:id/reimprimir', (req, res) => {
+  imprimirPedidoManual(req, res, { segundaVia: true });
 });
 
 // GET /api/logs - Obter histórico de auditoria

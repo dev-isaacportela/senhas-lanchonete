@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Plus, Minus, Trash2, Send, CheckCircle2, FileText, User, Tag, Clock, Calendar, Phone, AlertCircle, CreditCard, DollarSign, QrCode, Copy, Check, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ShoppingBag, Plus, Minus, Trash2, Send, CheckCircle2, FileText, User, Tag, Clock, Calendar, Phone, AlertCircle, CreditCard, DollarSign, QrCode, Copy, Check, X, Printer } from 'lucide-react';
 
 // Função utilitária oficial do Banco Central (BACEN) para geração de Payload PIX (BR Code EMV) + CRC16
 function gerarPayloadPix({ chave, nome, cidade, valor, txtId = '***' }) {
@@ -59,6 +59,12 @@ export default function CaixaView({
   const [categoriaAtiva, setCategoriaAtiva] = useState('todas');
   const [sucessoMsg, setSucessoMsg] = useState(null);
   const [erroEstoque, setErroEstoque] = useState(null);
+
+  // Último pedido fechado, para o caixa conseguir imprimir o comprovante
+  // depois de enviar. Fica na tela até o próximo pedido ou até ser fechado.
+  const [ultimoPedido, setUltimoPedido] = useState(null);
+  const [statusImpressao, setStatusImpressao] = useState(null);
+  const imprimindoRef = useRef(false);
   const [mobileTab, setMobileTab] = useState('cardapio'); // cardapio | carrinho
 
   // Estado de Forma de Pagamento, Telefone e Data
@@ -212,6 +218,43 @@ export default function CaixaView({
     };
   }, []);
 
+  /*
+   * Imprime o comprovante do cliente do pedido recém-fechado.
+   *
+   * Sai como primeira via, sem a marca de 2a VIA, e funciona mesmo com a
+   * impressão automática desligada na configuração. O ref é o que trava o
+   * clique duplo: `disabled` só vale depois do re-render do React.
+   */
+  const imprimirComprovante = () => {
+    if (!ultimoPedido || imprimindoRef.current) return;
+
+    imprimindoRef.current = true;
+    setStatusImpressao({ tipo: 'enviando', texto: 'Enviando para a impressora...' });
+
+    fetch(`/api/orders/${ultimoPedido.id}/imprimir`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vias: { cliente: true, cozinha: false },
+        operadorNome: operador ? operador.nome : 'Caixa'
+      })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.status === 'success') {
+          setStatusImpressao({ tipo: 'ok', texto: 'Comprovante enviado para a impressora.' });
+        } else {
+          setStatusImpressao({ tipo: 'erro', texto: data?.error || 'Não foi possível imprimir.' });
+        }
+      })
+      .catch(() => {
+        setStatusImpressao({ tipo: 'erro', texto: 'Erro de conexão ao imprimir.' });
+      })
+      .finally(() => {
+        imprimindoRef.current = false;
+      });
+  };
+
   // Calcular total do pedido
   const totalCalculado = carrinho.reduce((sum, item) => sum + (item.preco * item.quantidade), 0);
   const totalItensQtd = carrinho.reduce((sum, item) => sum + item.quantidade, 0);
@@ -293,8 +336,14 @@ export default function CaixaView({
         return;
       }
 
-      const numOrder = resposta?.order?.numero || resposta?.pedido?.numero || 'OK';
+      const pedidoCriado = resposta?.order || resposta?.pedido || null;
+      const numOrder = pedidoCriado?.numero || 'OK';
+
       setSucessoMsg(`Pedido #${numOrder} enviado para a cozinha!`);
+      if (pedidoCriado?.id) {
+        setUltimoPedido(pedidoCriado);
+        setStatusImpressao(null);
+      }
       setErroEstoque(null);
       setModalPixAberto(false);
       setCliente('');
@@ -521,6 +570,17 @@ export default function CaixaView({
           background: rgba(250, 15, 0, 0.16);
           color: var(--primary);
           border: 1px solid var(--primary);
+        }
+
+        .painel-comprovante {
+          background: var(--app-surface-1);
+          border: 1px solid var(--app-border);
+          border-left: 4px solid var(--primary);
+          border-radius: var(--radius-md);
+          padding: 0.8rem 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
         }
 
         .aviso-estoque {
@@ -861,6 +921,55 @@ export default function CaixaView({
           <div style={{ background: 'var(--color-primary-bg)', border: '1px solid var(--color-primary)', color: 'var(--color-primary)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
             <CheckCircle2 size={18} />
             <span>{sucessoMsg}</span>
+          </div>
+        )}
+
+        {/* Comprovante do último pedido fechado */}
+        {ultimoPedido && (
+          <div className="painel-comprovante">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: '180px' }}>
+                <div style={{ fontWeight: 800, color: 'var(--text-title)', fontSize: '0.95rem' }}>
+                  Comanda #{ultimoPedido.numero} — {ultimoPedido.cliente}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--app-ink-muted)', marginTop: '2px' }}>
+                  Total R$ {(Number(ultimoPedido.total) || 0).toFixed(2)}
+                </div>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                style={{ padding: '0.55rem 0.9rem', fontSize: '0.9rem' }}
+                onClick={imprimirComprovante}
+                disabled={statusImpressao?.tipo === 'enviando'}
+              >
+                <Printer size={17} />
+                {statusImpressao?.tipo === 'enviando' ? 'Enviando...' : 'Imprimir comprovante'}
+              </button>
+
+              <button
+                className="btn btn-secondary"
+                style={{ padding: '0.5rem', minHeight: '38px' }}
+                onClick={() => { setUltimoPedido(null); setStatusImpressao(null); }}
+                title="Fechar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {statusImpressao && statusImpressao.tipo !== 'enviando' && (
+              <div style={{
+                fontSize: '0.83rem',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                color: statusImpressao.tipo === 'ok' ? 'var(--status-pronto)' : 'var(--primary)'
+              }}>
+                {statusImpressao.tipo === 'ok' ? <Check size={15} /> : <AlertCircle size={15} />}
+                <span>{statusImpressao.texto}</span>
+              </div>
+            )}
           </div>
         )}
 
