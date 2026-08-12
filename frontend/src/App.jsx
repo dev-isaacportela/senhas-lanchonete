@@ -163,6 +163,28 @@ export default function App() {
       setMenu(formatarMenu(novoMenu));
     });
 
+    // Estoque em tempo real: mescla no menu que já está em memória, sem
+    // recarregar o cardápio inteiro a cada reserva de outro caixa.
+    socket.on('estoque_atualizado', (lista) => {
+      if (!Array.isArray(lista) || lista.length === 0) return;
+
+      setMenu(prev => ({
+        ...prev,
+        produtos: prev.produtos.map(p => {
+          const info = lista.find(e => e.produtoId === p.id);
+          if (!info) return p;
+          return {
+            ...p,
+            controlaEstoque: info.controlaEstoque,
+            estoque: info.estoque,
+            estoqueMinimo: info.estoqueMinimo,
+            reservado: info.reservado,
+            disponivelEstoque: info.disponivel
+          };
+        })
+      }));
+    });
+
     socket.on('novo_log_auditoria', (novoLog) => {
       setLogs(prev => [novoLog, ...prev.filter(l => l.id !== novoLog.id)]);
     });
@@ -176,6 +198,7 @@ export default function App() {
       socket.off('status_pedido_atualizado');
       socket.off('pedido_chamado');
       socket.off('cardapio_atualizado');
+      socket.off('estoque_atualizado');
       socket.off('novo_log_auditoria');
     };
   }, []);
@@ -249,6 +272,36 @@ export default function App() {
         }
       })
       .catch(err => console.error('Erro ao alternar item:', err));
+  };
+
+  // Reserva de estoque no carrinho. O callback do socket é a confirmação:
+  // o CaixaView só mexe no carrinho depois que o servidor aceitou.
+  const handleReservarItem = (produtoId, quantidade, callback) => {
+    socket.emit('reservar_item', { produtoId, quantidade: quantidade || 1 }, callback);
+  };
+
+  const handleLiberarItem = (produtoId, quantidade, callback) => {
+    socket.emit('liberar_item', { produtoId, quantidade: quantidade || 1 }, callback);
+  };
+
+  const handleLiberarCarrinho = (callback) => {
+    socket.emit('liberar_carrinho', {}, callback);
+  };
+
+  const handleAjustarEstoque = (produtoId, ajuste) => {
+    return fetch(`/api/menu/produto/${produtoId}/estoque`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...ajuste,
+        operadorNome: operador ? operador.nome : 'Gerente'
+      })
+    })
+      .then(res => res.json())
+      .catch(err => {
+        console.error('Erro ao ajustar estoque:', err);
+        return { error: 'Erro de conexão ao ajustar o estoque.' };
+      });
   };
 
   const handleSalvarProduto = (produtoData) => {
@@ -549,7 +602,14 @@ export default function App() {
       <main className="main-content">
         {visaoAtiva === 'caixa' && (
           podeLancarPedidos ? (
-            <CaixaView menu={menu} operador={operador} onEnviarPedido={handleEnviarPedido} />
+            <CaixaView
+              menu={menu}
+              operador={operador}
+              onEnviarPedido={handleEnviarPedido}
+              onReservarItem={handleReservarItem}
+              onLiberarItem={handleLiberarItem}
+              onLiberarCarrinho={handleLiberarCarrinho}
+            />
           ) : (
             <div style={{ background: 'var(--app-surface-1)', border: '1px solid var(--app-border)', borderRadius: 'var(--radius-lg)', padding: '3rem', textAlign: 'center', color: 'var(--app-ink-muted)' }}>
               <Lock size={48} color="var(--primary)" style={{ marginBottom: '1rem' }} />
@@ -594,6 +654,7 @@ export default function App() {
               onToggleDisponivel={handleToggleDisponivel}
               onSalvarCategoria={handleSalvarCategoria}
               onExcluirCategoria={handleExcluirCategoria}
+              onAjustarEstoque={handleAjustarEstoque}
             />
           ) : (
             <div style={{ background: 'var(--app-surface-1)', border: '1px solid var(--app-border)', borderRadius: 'var(--radius-lg)', padding: '3rem', textAlign: 'center', color: 'var(--app-ink-muted)' }}>
